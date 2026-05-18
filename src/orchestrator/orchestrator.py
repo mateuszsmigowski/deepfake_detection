@@ -28,7 +28,8 @@ def _prepare_data(config: ConfigModel) -> tuple[ManifestModel, OneOutSplitModel]
 
     manifest_manager = ManifestManager(
         config.data.dataset_path,
-        config.manifest.path
+        config.manifest.path,
+        config.experiment.real_domain
     )
     manifest: ManifestModel = manifest_manager.make_manifest()
 

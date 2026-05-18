@@ -5,7 +5,6 @@ from src.pipelines.data.manifest.parser import ImageDirectoryParser
 from src.pipelines.data.image_record_model import ImageRecordModel
 
 # MARK: - Constants
-# TODO: Find better way to determine real domain
 _MANIFEST_FIELDNAMES = [
     "relative_path",
     "filename",
@@ -20,11 +19,12 @@ class ManifestManager:
 
     # MARK: - Initialization
 
-    def __init__(self, dataset_path: Path, output_path: Path):
+    def __init__(self, dataset_path: Path, output_path: Path, real_domain: str):
 
         self.dataset_path = dataset_path
         self.output_path = output_path
-        self.parser = ImageDirectoryParser(dataset_path)
+        self.real_domain = real_domain
+        self.parser = ImageDirectoryParser(dataset_path, real_domain)
 
     # MARK: - Public methods
 
@@ -66,9 +66,17 @@ class ManifestManager:
                 relative_path=Path(record["relative_path"]),
                 filename=record["filename"],
                 domain=record["domain"],
-                label=record["label"],
+                label=(
+                    ImageRecordModel.Label.REAL
+                    if record["domain"] == self.real_domain
+                    else ImageRecordModel.Label.FAKE
+                ),
                 video_id=record["video_id"],
-                frame_id=record["frame_id"],
+                frame_id=(
+                    int(record["frame_id"]) 
+                    if record["frame_id"] 
+                    else None
+                ),
                 group_id=record["group_id"],
             ) for record in reader])
  

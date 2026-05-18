@@ -30,10 +30,34 @@ class ExperimentConfig:
     fake_domains: list[str]
     held_out_domain: str
 
+    @property
+    def domains(self) -> list[str]:
+        return [self.real_domain, *self.fake_domains]
+
+    @property
+    def domain_to_int(self) -> dict[str, int]:
+        return {domain: index for index, domain in enumerate(self.domains)}
+
+    @property
+    def source_domains(self) -> list[str]:
+        return [self.real_domain, *[
+            domain
+            for domain in self.fake_domains
+            if domain != self.held_out_domain
+        ],]
+
+    @property
+    def source_domain_to_int(self) -> dict[str, int]:
+        return {domain: index for index, domain in enumerate(self.source_domains)}
+
 # MARK: - DataConfig
 @dataclass(frozen=True)
 class DataConfig:
     dataset_path: Path
+    train_real: int
+    train_fake: int
+    val_real: int
+    val_fake: int
 
 # MARK: - RuntimeConfig
 @dataclass(frozen=True)

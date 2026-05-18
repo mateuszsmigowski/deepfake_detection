@@ -4,14 +4,13 @@ from src.pipelines.data.image_record_model import ImageRecordModel
 ImageLabel = ImageRecordModel.Label
 
 # MARK: - Constants
-# TODO: Find better way to determine real domain
-_REAL_DOMAIN = "Original"
 _IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
 
 class ImageDirectoryParser:
 
-    def __init__(self, dataset_path: Path):
+    def __init__(self, dataset_path: Path, real_domain: str):
         self.dataset_path = dataset_path
+        self.real_domain = real_domain
 
     def parse(self) -> list[ImageRecordModel]:
         
@@ -32,7 +31,7 @@ class ImageDirectoryParser:
     def _parse_images(self, domain_path: Path) -> list[ImageRecordModel]:
 
         domain: str = domain_path.name
-        label: ImageLabel = ImageLabel.REAL if domain == _REAL_DOMAIN else ImageLabel.FAKE
+        label: ImageLabel = ImageLabel.REAL if domain == self.real_domain else ImageLabel.FAKE
         
         image_paths: list[Path] = self._image_paths(domain_path)
         image_records: list[ImageRecordModel] = []

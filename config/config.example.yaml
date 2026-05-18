@@ -1,6 +1,6 @@
 experiment:
   name: "baseline-example"
-  mode: "dann"
+  mode: "baseline"
   real_domain: "Original"
   fake_domains:
     - "Deepfakes"
@@ -12,6 +12,10 @@ experiment:
 
 data:
   dataset_path: "/Volumes/DyskSSD1T/Datasets/FaceForensics++ Extracted Dataset (C23)/FF++C32-Frames"
+  train_real: 1000
+  train_fake: 1000
+  val_real: 500
+  val_fake: 500
 
 runtime:
   seed: 42
@@ -48,4 +52,4 @@ outputs:
   runs_path: "runs"
   save_checkpoints: true
   save_metrics: true
-  checkpoint_metric: "validation_loss"
+  checkpoint_metric: "validation_balanced_accuracy"

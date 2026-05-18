@@ -57,6 +57,10 @@ def _data_config(values: dict[str, Any], base_path: Path) -> DataConfig:
 
     return DataConfig(
         dataset_path=base_path / values["dataset_path"],
+        train_real=int(values["train_real"]),
+        train_fake=int(values["train_fake"]),
+        val_real=int(values["val_real"]),
+        val_fake=int(values["val_fake"]),
     )
 
 def _runtime_config(values: dict[str, Any]) -> RuntimeConfig:

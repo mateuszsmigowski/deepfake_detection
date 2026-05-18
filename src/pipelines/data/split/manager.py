@@ -19,10 +19,17 @@ _MANIFEST_FIELDNAMES = [
 
 class SplitManager:
 
+    @property
+    def _split_dir(self) -> Path:
+        return self.split_config.path / f"held_out_{self.experiment_config.held_out_domain}"
+
+    # MARK: - Initialization
+
     def __init__(self, manifest: ManifestModel, split_config: SplitConfig, experiment_config: ExperimentConfig):
 
         self.manifest = manifest
         self.split_config = split_config
+        self.experiment_config = experiment_config
         self.one_out_builder = OneOutSplitBuilder(manifest, split_config, experiment_config)
 
     def make_split(self) -> OneOutSplitModel:
@@ -39,7 +46,7 @@ class SplitManager:
 
     def _write_split(self, split: OneOutSplitModel) -> None:
 
-        self.split_config.path.mkdir(parents=True, exist_ok=True)
+        self._split_dir.mkdir(parents=True, exist_ok=True)
 
         (
             source_train_path,
@@ -121,10 +128,10 @@ class SplitManager:
 
     def _split_paths(self) -> tuple[Path, Path, Path, Path, Path, Path]:
         return (
-            self.split_config.path / "source_train.csv",
-            self.split_config.path / "source_validation.csv",
-            self.split_config.path / "source_test.csv",
-            self.split_config.path / "target_train.csv",
-            self.split_config.path / "target_validation.csv",
-            self.split_config.path / "target_test.csv",
+            self._split_dir / "source_train.csv",
+            self._split_dir / "source_validation.csv",
+            self._split_dir / "source_test.csv",
+            self._split_dir / "target_train.csv",
+            self._split_dir / "target_validation.csv",
+            self._split_dir / "target_test.csv",
         )

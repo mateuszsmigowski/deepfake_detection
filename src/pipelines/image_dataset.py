@@ -12,26 +12,19 @@ class ImageDataset(Dataset):
         ImageRecordModel.Label.FAKE: 1,
     }
 
-    domain_to_int = {
-        "Original": 0,
-        "Deepfakes": 1,
-        "Face2Face": 2,
-        "FaceSwap": 3,
-        "NeuralTextures": 4,
-        "FaceShifter": 5,
-    }
-
     def __init__(
         self,
         records: list[ImageRecordModel],
         dataset_path: Path,
+        domain_to_int: dict[str, int],
         transforms: Callable | None = None,
     ):
         
         self.records = records
         self.dataset_path = dataset_path
         self.transforms = transforms
-
+        self.domain_to_int = domain_to_int
+        
     def __len__(self):
         return len(self.records)
 

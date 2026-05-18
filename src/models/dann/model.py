@@ -7,15 +7,14 @@ from src.models.dann.gradient_reversal import GradientReversalLayer
 
 class DANNClassifier(nn.Module):
 
-    def __init__(self, model_config: ModelConfig, domain_adaptation_config: DomainAdaptationConfig):
+    def __init__(self, model_config: ModelConfig, domain_adaptation_config: DomainAdaptationConfig, domains_count: int = 6):
         super().__init__()
 
         self.domain_adaptation_config = domain_adaptation_config
         self.backbone, feature_dim = self._build_backbone(model_config)
         self.gradient_reversal_layer = GradientReversalLayer()
         self.label_classifier = self._build_label_classifier(feature_dim)
-        # TODO: Add domains count
-        self.domain_classifier = self._build_domain_classifier(feature_dim, 6)
+        self.domain_classifier = self._build_domain_classifier(feature_dim, domains_count)
 
     @staticmethod
     def _build_backbone(model_config: ModelConfig) -> tuple[nn.Module, int]:

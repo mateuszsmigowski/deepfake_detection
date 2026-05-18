@@ -1,8 +1,9 @@
 import torch
-import time
 from src.loaders.config import ConfigModel
 from torch.optim import Adam
 from torch.utils.data import DataLoader
+from src.metrics import DANNMetrics, MetricsLogger, BaselineMetrics
+from src.training.helpers import resolve_device
 
 class DANNTrainer:
 
@@ -21,25 +22,24 @@ class DANNTrainer:
         self.validation_loader = validation_loader
         self.test_loader = test_loader
         self.optimizer = Adam(
-            self.model.parameters(),
-            lr=self.config.training.learning_rate,
+            model.parameters(),
+            lr=config.training.learning_rate,
         )
         self.label_criterion = torch.nn.BCEWithLogitsLoss()
         self.domain_criterion = torch.nn.CrossEntropyLoss()
+        self.metrics = DANNMetrics()
+        self.logger = MetricsLogger(config)
 
     def run(self):
         
-        device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
+        device = resolve_device(self.config.runtime.device)
         self.model.to(device)
 
         for epoch in range(self.config.training.epochs):
-            epoch_start = time.perf_counter()
+            
             self.model.train()
-
-            total_loss = 0.0
-            correct = 0
-            total = 0
-
+            self.metrics.reset()
+        
             for batch in self.train_loader:
                 images = batch["image"].to(device)
                 labels = batch["label"].to(device)
@@ -55,88 +55,74 @@ class DANNTrainer:
                 loss.backward()
                 self.optimizer.step()
 
-                batch_size = labels.size(0)
-                total_loss += loss.item() * batch_size
-
-                probabilities = torch.sigmoid(label_logits)
-                predictions = (probabilities >= 0.5).float()
-
-                correct += (predictions == labels).sum().item()
-                total += batch_size
+                self.metrics.update(
+                    labels,
+                    domains,
+                    label_logits,
+                    domain_logits,
+                    label_loss,
+                    domain_loss,
+                    loss
+                )
                 
-            average_loss = total_loss / total
-            accuracy = correct / total
-            epoch_time = time.perf_counter() - epoch_start
-            
-            print(
-                f"Epoch {epoch + 1}/{self.config.training.epochs}, "
-                f"Loss: {average_loss:.4f}, "
-                f"Accuracy: {accuracy:.4f}, "
-                f"Time: {epoch_time:.1f}s",
-            )
+            metrics = self.metrics.get_metrics()
+            self.logger.log_metrics("train", metrics, epoch + 1)
 
             if (epoch + 1) % self.config.training.validation_interval == 0:
-                metrics = self._evaluate(device, self.validation_loader, include_domain_loss=True)
-                print(
-                    f"Validation Total Loss: {metrics['total_loss']:.4f}, "
-                    f"Validation Label Loss: {metrics['label_loss']:.4f}, "
-                    f"Validation Domain Loss: {metrics['domain_loss']:.4f}, "
-                    f"Validation Accuracy: {metrics['label_accuracy']:.4f}",
+                
+                metrics = self._evaluate(
+                    device,
+                    self.validation_loader,
+                    include_domain_metrics=True,
                 )
-        metrics = self._evaluate(device, self.test_loader, include_domain_loss=False)
-        print(
-            f"Target Test Label Loss: {metrics['label_loss']:.4f}, "
-            f"Target Test Accuracy: {metrics['label_accuracy']:.4f}",
+                self.logger.log_metrics("validation", metrics, epoch + 1)
+                self.logger.save_best_checkpoint(self.model, metrics, "validation", epoch + 1)
+
+        self.logger.load_best_checkpoint(self.model, device)
+        metrics = self._evaluate(
+            device,
+            self.test_loader,
+            include_domain_metrics=False,
         )
+        self.logger.log_metrics("test", metrics)
 
     def _evaluate(
         self,
         device: torch.device,
         loader: DataLoader,
-        include_domain_loss: bool,
-    ):
+        include_domain_metrics: bool,
+    ) -> dict[str, float]:
 
         self.model.eval()
-
-        total_loss = 0.0
-        total_label_loss = 0.0
-        total_domain_loss = 0.0
-        correct = 0
-        total = 0
+        metrics = DANNMetrics() if include_domain_metrics else BaselineMetrics()
 
         with torch.no_grad():
             for batch in loader:
                 images = batch["image"].to(device)
                 labels = batch["label"].to(device)
-                domains = batch["domain"].to(device)
 
                 label_logits, domain_logits = self.model(images)
                 label_loss = self.label_criterion(label_logits, labels)
-                domain_loss = self.domain_criterion(domain_logits, domains)
 
-                if include_domain_loss:
+                if include_domain_metrics:
+                    domains = batch["domain"].to(device)
+                    domain_loss = self.domain_criterion(domain_logits, domains)
                     loss = label_loss + self.config.domain_adaptation.domain_loss_weight * domain_loss
+
+                    metrics.update(
+                        labels,
+                        domains,
+                        label_logits,
+                        domain_logits,
+                        label_loss,
+                        domain_loss,
+                        loss,
+                    )
                 else:
-                    loss = label_loss
+                    metrics.update(
+                        labels,
+                        label_logits,
+                        label_loss,
+                    )
 
-                batch_size = labels.size(0)
-                total_loss += loss.item() * batch_size
-
-                total_label_loss += label_loss.item() * batch_size
-                total_domain_loss += domain_loss.item() * batch_size
-
-                probabilities = torch.sigmoid(label_logits)
-                predictions = (probabilities >= 0.5).float()
-
-                correct += (predictions == labels).sum().item()
-                total += batch_size
-
-        if total == 0:
-            raise ValueError("Cannot evaluate an empty data loader.")
-
-        return {
-            "total_loss": total_loss / total,
-            "label_loss": total_label_loss / total,
-            "domain_loss": total_domain_loss / total,
-            "label_accuracy": correct / total,
-        }
+        return metrics.get_metrics()
