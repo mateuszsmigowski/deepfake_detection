@@ -22,6 +22,7 @@ class DANNPipeline:
             train_records,
             shuffle=True,
             domain_to_int=source_domain_to_int,
+            isTraining=True,
         )
         val_loader = prepare_data_loader(
             self.config,

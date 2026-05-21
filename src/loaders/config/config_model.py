@@ -80,6 +80,10 @@ class ModelConfig:
 
     class  Architecture(StrEnum):
         RESNET18 = "resnet18"
+        RESNET50 = "resnet50"
+        EFFICIENTNET_B0 = "efficientnet_b0"
+        CONVNEXT_TINY = "convnext_tiny"
+        MOBILENET_V3_SMALL = "mobilenet_v3_small"
 
     architecture: Architecture
     pretrained: bool
@@ -105,13 +109,18 @@ class TrainingConfig:
     epochs: int
     batch_size: int
     learning_rate: float
+    weight_decay: float
     validation_interval: int
+    early_stopping_patience: int | None = None
+    pos_weight: bool = False
 
 # MARK: - DomainAdaptationConfig
 @dataclass(frozen=True)
 class DomainAdaptationConfig:
     gradient_reversal_lambda: float
     domain_loss_weight: float
+    grl_scheduler_enable: bool = False
+    grl_scheduler_gamma: float = 10.0
 
 # MARK: - OutputsConfig
 @dataclass(frozen=True)

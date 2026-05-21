@@ -1,9 +1,9 @@
 import torch
 from src.loaders.config import ConfigModel
-from torch.optim import Adam
 from torch.utils.data import DataLoader
 from src.metrics import DANNMetrics, MetricsLogger, BaselineMetrics
-from src.training.helpers import resolve_device
+from src.training.helpers import resolve_device, build_optimizer, EarlyStopping, build_label_criterion
+from src.training.dann.grl_scheduler import compute_grl_lambda
 
 class DANNTrainer:
 
@@ -21,33 +21,39 @@ class DANNTrainer:
         self.train_loader = train_loader
         self.validation_loader = validation_loader
         self.test_loader = test_loader
-        self.optimizer = Adam(
-            model.parameters(),
-            lr=config.training.learning_rate,
-        )
-        self.label_criterion = torch.nn.BCEWithLogitsLoss()
+        self.device = resolve_device(config.runtime.device)
+        self.label_criterion = build_label_criterion(config, self.device)
+        self.optimizer = build_optimizer(model, config.training)
         self.domain_criterion = torch.nn.CrossEntropyLoss()
         self.metrics = DANNMetrics()
         self.logger = MetricsLogger(config)
+        patience = config.training.early_stopping_patience
+        self.early_stopping = EarlyStopping(patience) if patience is not None else None
 
     def run(self):
         
-        device = resolve_device(self.config.runtime.device)
-        self.model.to(device)
+        self.model.to(self.device)
 
         for epoch in range(self.config.training.epochs):
             
+            grl_lambda = compute_grl_lambda(
+                epoch + 1,
+                self.config.training.epochs,
+                self.config.domain_adaptation.gradient_reversal_lambda,
+                self.config.domain_adaptation.grl_scheduler_gamma,
+                self.config.domain_adaptation.grl_scheduler_enable,
+            )
             self.model.train()
             self.metrics.reset()
         
             for batch in self.train_loader:
-                images = batch["image"].to(device)
-                labels = batch["label"].to(device)
-                domains = batch["domain"].to(device)
+                images = batch["image"].to(self.device)
+                labels = batch["label"].to(self.device)
+                domains = batch["domain"].to(self.device)
 
                 self.optimizer.zero_grad()
 
-                label_logits, domain_logits = self.model(images)
+                label_logits, domain_logits = self.model(images, grl_lambda)
                 label_loss = self.label_criterion(label_logits, labels)
                 domain_loss = self.domain_criterion(domain_logits, domains)
                 loss = label_loss + self.config.domain_adaptation.domain_loss_weight * domain_loss
@@ -71,16 +77,17 @@ class DANNTrainer:
             if (epoch + 1) % self.config.training.validation_interval == 0:
                 
                 metrics = self._evaluate(
-                    device,
                     self.validation_loader,
                     include_domain_metrics=True,
+                    grl_lambda=grl_lambda,
                 )
                 self.logger.log_metrics("validation", metrics, epoch + 1)
-                self.logger.save_best_checkpoint(self.model, metrics, "validation", epoch + 1)
+                improved = self.logger.save_best_checkpoint(self.model, metrics, "validation", epoch + 1)
+                if self.early_stopping and self.early_stopping.step(improved):
+                    break
 
-        self.logger.load_best_checkpoint(self.model, device)
+        self.logger.load_best_checkpoint(self.model, self.device)
         metrics = self._evaluate(
-            device,
             self.test_loader,
             include_domain_metrics=False,
         )
@@ -88,9 +95,9 @@ class DANNTrainer:
 
     def _evaluate(
         self,
-        device: torch.device,
         loader: DataLoader,
         include_domain_metrics: bool,
+        grl_lambda: float | None = None,
     ) -> dict[str, float]:
 
         self.model.eval()
@@ -98,14 +105,14 @@ class DANNTrainer:
 
         with torch.no_grad():
             for batch in loader:
-                images = batch["image"].to(device)
-                labels = batch["label"].to(device)
+                images = batch["image"].to(self.device)
+                labels = batch["label"].to(self.device)
 
-                label_logits, domain_logits = self.model(images)
+                label_logits, domain_logits = self.model(images, grl_lambda)
                 label_loss = self.label_criterion(label_logits, labels)
 
                 if include_domain_metrics:
-                    domains = batch["domain"].to(device)
+                    domains = batch["domain"].to(self.device)
                     domain_loss = self.domain_criterion(domain_logits, domains)
                     loss = label_loss + self.config.domain_adaptation.domain_loss_weight * domain_loss
 

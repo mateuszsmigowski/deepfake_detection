@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 from src.loaders.config import ModelConfig, DomainAdaptationConfig
-from torchvision.models import resnet18, ResNet18_Weights
+from src.models.builder import ModelBuilder
 from src.models.dann.gradient_reversal import GradientReversalLayer
 
 
@@ -18,23 +18,7 @@ class DANNClassifier(nn.Module):
 
     @staticmethod
     def _build_backbone(model_config: ModelConfig) -> tuple[nn.Module, int]:
-
-        model = None
-        match model_config.architecture:
-            case ModelConfig.Architecture.RESNET18:
-                weights = ResNet18_Weights.DEFAULT if model_config.pretrained else None
-                model = resnet18(weights=weights)
-            case _:
-                raise ValueError(f"Unsupported model architecture: {model_config.architecture}")
-        
-        feature_dim = model.fc.in_features
-        model.fc = nn.Identity()
-
-        if model_config.freeze_backbone:
-            for param in model.parameters():
-                param.requires_grad = False
-
-        return model, feature_dim
+        return ModelBuilder.build_backbone(model_config)
 
     @staticmethod
     def _build_label_classifier(feature_dim: int) -> nn.Module:
@@ -50,13 +34,20 @@ class DANNClassifier(nn.Module):
             nn.Linear(256, domains_count),
         )
 
-    def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    def forward(self, x: torch.Tensor, grl_lambda: float | None = None) -> tuple[torch.Tensor, torch.Tensor]:
 
         features = self.backbone(x)
         label_logits = self.label_classifier(features).squeeze(dim=1)
+
+        lambda_ = (
+            grl_lambda
+            if grl_lambda is not None
+            else self.domain_adaptation_config.gradient_reversal_lambda
+        )
+
         reversed_features = self.gradient_reversal_layer(
             features,
-            self.domain_adaptation_config.gradient_reversal_lambda,
+            lambda_,
         )
         domain_logits = self.domain_classifier(reversed_features)
         return label_logits, domain_logits

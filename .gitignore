@@ -22,6 +22,12 @@ htmlcov/
 .env
 .env.*
 
+# Experiment run outputs (checkpoints, metrics, saved configs)
+config/runs/
+
+# Dataset manifests and splits (generated locally)
+manifests/
+
 # Editor and OS files
 .cursor/
 .vscode/

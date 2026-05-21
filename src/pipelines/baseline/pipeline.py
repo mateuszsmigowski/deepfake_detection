@@ -18,7 +18,7 @@ class BaselinePipeline:
 
         train_records, val_records, test_records = prepare_records(self.config.data, self.one_out_split)
 
-        train_loader = prepare_data_loader(self.config, train_records, shuffle=True)
+        train_loader = prepare_data_loader(self.config, train_records, shuffle=True, isTraining=True)
         val_loader = prepare_data_loader(self.config, val_records, shuffle=False)
         test_loader = prepare_data_loader(self.config, test_records, shuffle=False)
         classifier = BaselineClassifier(self.config.model)

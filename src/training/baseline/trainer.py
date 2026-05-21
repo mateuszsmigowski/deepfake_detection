@@ -1,10 +1,8 @@
-import time
 import torch
 from torch import nn
-from torch.optim import Adam
 from src.loaders.config import ConfigModel
 from torch.utils.data import DataLoader
-from src.training.helpers import resolve_device
+from src.training.helpers import resolve_device, build_optimizer, EarlyStopping, build_label_criterion
 from src.metrics.baseline_metrics import BaselineMetrics
 from src.metrics.logger import MetricsLogger
 
@@ -23,18 +21,17 @@ class BaselineTrainer:
         self.train_loader = train_loader
         self.validation_loader = validation_loader
         self.test_loader = test_loader
-        self.optimizer = Adam(
-            model.parameters(),
-            lr=config.training.learning_rate,
-        )
-        self.criterion = nn.BCEWithLogitsLoss()
+        self.device = resolve_device(config.runtime.device)
+        self.criterion = build_label_criterion(config, self.device)
+        self.optimizer = build_optimizer(model, config.training)
         self.metrics = BaselineMetrics()
         self.logger = MetricsLogger(config)
+        patience = config.training.early_stopping_patience
+        self.early_stopping = EarlyStopping(patience) if patience is not None else None
 
     def run(self):
 
-        device = resolve_device(self.config.runtime.device)
-        self.model.to(device)
+        self.model.to(self.device)
 
         for epoch in range(self.config.training.epochs): 
             
@@ -42,8 +39,8 @@ class BaselineTrainer:
             self.metrics.reset()
 
             for batch in self.train_loader:
-                images = batch["image"].to(device)
-                labels = batch["label"].to(device)
+                images = batch["image"].to(self.device)
+                labels = batch["label"].to(self.device)
 
                 self.optimizer.zero_grad()
 
@@ -59,23 +56,25 @@ class BaselineTrainer:
             self.logger.log_metrics("train", metrics, epoch + 1)
 
             if (epoch + 1) % self.config.training.validation_interval == 0:
-                metrics = self._evaluate(device, self.validation_loader)
+                metrics = self._evaluate(self.validation_loader)
                 self.logger.log_metrics("validation", metrics, epoch + 1)
-                self.logger.save_best_checkpoint(self.model, metrics, "validation", epoch + 1)
+                improved = self.logger.save_best_checkpoint(self.model, metrics, "validation", epoch + 1)
+                if self.early_stopping and self.early_stopping.step(improved):
+                    break
         
-        self.logger.load_best_checkpoint(self.model, device)
-        metrics = self._evaluate(device, self.test_loader)
+        self.logger.load_best_checkpoint(self.model, self.device)
+        metrics = self._evaluate(self.test_loader)
         self.logger.log_metrics("test", metrics)
 
-    def _evaluate(self, device: torch.device, loader: DataLoader):
+    def _evaluate(self, loader: DataLoader):
         
         self.model.eval()
         self.metrics.reset()
 
         with torch.no_grad():
             for batch in loader:
-                images = batch["image"].to(device)
-                labels = batch["label"].to(device)
+                images = batch["image"].to(self.device)
+                labels = batch["label"].to(self.device)
 
                 logits = self.model(images)
                 loss = self.criterion(logits, labels)

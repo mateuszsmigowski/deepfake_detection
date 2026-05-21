@@ -5,17 +5,20 @@ from src.pipelines.data.image_record_model import ImageRecordModel
 from src.pipelines.image_dataset import ImageDataset
 from src.loaders.config import ConfigModel, DataConfig
 from src.pipelines.data.split import OneOutSplitModel
+from src.models.builder import ModelBuilder
 
 def prepare_data_loader(
     config: ConfigModel,
     records: list[ImageRecordModel],
     shuffle: bool = True,
     domain_to_int: dict[str, int] | None = None,
+    isTraining: bool = False,
 ) -> DataLoader:
 
-    # TODO: Transofrms shouldn't be hardcoded here
-    weights = ResNet18_Weights.DEFAULT
-    transforms = weights.transforms()
+    if isTraining:
+        transforms = ModelBuilder.get_training_transforms(config.model.architecture)
+    else:
+        transforms = ModelBuilder.get_evaluation_transforms(config.model.architecture)
 
     image_dataset = ImageDataset(
         records=records,

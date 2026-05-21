@@ -59,10 +59,7 @@ class MetricsLogger:
         metrics: dict[str, float],
         split: str,
         epoch: int,
-    ):
-        
-        if not self.config.outputs.save_checkpoints:
-            return
+    ) -> bool:
 
         metric_name = self.config.outputs.checkpoint_metric
         metric_value = self._resolve_metric(metric_name, split, metrics)
@@ -70,18 +67,23 @@ class MetricsLogger:
         if metric_value is None:
             raise ValueError(f"Checkpoint metric '{metric_name}' not found in {split} metrics.")
 
-        if self.best_metric is None or self._is_better(metric_name, metric_value):
+        improved = self.best_metric is None or self._is_better(metric_name, metric_value)
+
+        if improved:
             self.best_metric = metric_value
-            torch.save(
-                {
-                    "epoch": epoch,
-                    "metric_name": metric_name,
-                    "metric_value": metric_value,
-                    "model_state_dict": model.state_dict(),
-                    "config": self._jsonable(asdict(self.config)),
-                },
-                self.checkpoints_dir / "best.pt"
-            )
+            if self.config.outputs.save_checkpoints:
+                torch.save(
+                    {
+                        "epoch": epoch,
+                        "metric_name": metric_name,
+                        "metric_value": metric_value,
+                        "model_state_dict": model.state_dict(),
+                        "config": self._jsonable(asdict(self.config)),
+                    },
+                    self.checkpoints_dir / "best.pt"
+                )
+                
+        return improved
 
     def load_best_checkpoint(
         self,

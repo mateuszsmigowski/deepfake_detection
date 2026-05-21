@@ -9,21 +9,23 @@ class DANNVariant:
     domain_loss_weight: float | None = None
     freeze_backbone: bool | None = None
 
-SEEDS = [42, 123, 2026]
+SEEDS = [16516]
 
 DANN_ABLATIONS = [
     DANNVariant("dann-main"),
-    DANNVariant("grl-0p1", gradient_reversal_lambda=0.1),
-    DANNVariant("grl-0p5", gradient_reversal_lambda=0.5),
-    DANNVariant("grl-2p0", gradient_reversal_lambda=2.0),
-    DANNVariant("domain-weight-0p5", domain_loss_weight=0.5),
-    DANNVariant("domain-weight-2p0", domain_loss_weight=2.0),
-    DANNVariant("freeze-backbone", freeze_backbone=True),
+    # DANNVariant("grl-0p1", gradient_reversal_lambda=0.1),
+    # DANNVariant("grl-0p5", gradient_reversal_lambda=0.5),
+    # DANNVariant("grl-2p0", gradient_reversal_lambda=2.0),
+    # DANNVariant("domain-weight-0p5", domain_loss_weight=0.5),
+    # DANNVariant("domain-weight-2p0", domain_loss_weight=2.0),
+    # DANNVariant("freeze-backbone", freeze_backbone=True),
 ]
+
+HELD_OUT_DOMAINS = ["Face2Face"]
 
 def run_experiment(base_config: ConfigModel):
 
-    for held_out_domain in base_config.experiment.fake_domains:
+    for held_out_domain in HELD_OUT_DOMAINS:
         for seed in SEEDS:
             baseline_config = _make_config(
                 base_config,

@@ -100,11 +100,16 @@ def _manifest_config(values: dict[str, Any], base_path: Path) -> ManifestConfig:
 
 def _training_config(values: dict[str, Any]) -> TrainingConfig:
 
+    patience = values.get("early_stopping_patience", None)
+
     return TrainingConfig(
         epochs=values["epochs"],
         batch_size=values["batch_size"],
         learning_rate=values["learning_rate"],
+        weight_decay=values["weight_decay"],
         validation_interval=values["validation_interval"],
+        early_stopping_patience=patience,
+        pos_weight=bool(values.get("pos_weight", False)),
     )
 
 def _split_config(values: dict[str, Any], base_path: Path) -> SplitConfig:
@@ -121,6 +126,8 @@ def _domain_adaptation_config(values: dict[str, Any]) -> DomainAdaptationConfig:
     return DomainAdaptationConfig(
         gradient_reversal_lambda=values["gradient_reversal_lambda"],
         domain_loss_weight=values["domain_loss_weight"],
+        grl_scheduler_enable=bool(values.get("grl_scheduler_enable", False)),
+        grl_scheduler_gamma=float(values.get("grl_scheduler_gamma", 10.0)),
     )
 
 def _outputs_config(values: dict[str, Any], base_path: Path) -> OutputsConfig:
