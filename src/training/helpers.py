@@ -59,11 +59,11 @@ def build_label_criterion(config: ConfigModel, device: torch.device) -> torch.nn
     if not config.training.pos_weight:
         return torch.nn.BCEWithLogitsLoss()
     
-    if config.data.train_fake == 0:
-        raise ValueError("Pos weight is not supported when train fake is 0")
+    if config.data.train_source_fake == 0:
+        raise ValueError("Pos weight is not supported when train source fake is 0")
 
     pos_weight = torch.tensor(
-        [config.data.train_real / config.data.train_fake],
+        [config.data.train_source_real / config.data.train_source_fake],
         device=device,
     )
     return torch.nn.BCEWithLogitsLoss(pos_weight=pos_weight)

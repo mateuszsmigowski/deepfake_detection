@@ -7,7 +7,12 @@ from src.models.dann.gradient_reversal import GradientReversalLayer
 
 class DANNClassifier(nn.Module):
 
-    def __init__(self, model_config: ModelConfig, domain_adaptation_config: DomainAdaptationConfig, domains_count: int = 6):
+    def __init__(
+        self,
+        model_config: ModelConfig,
+        domain_adaptation_config: DomainAdaptationConfig,
+        domains_count: int,
+    ):
         super().__init__()
 
         self.domain_adaptation_config = domain_adaptation_config

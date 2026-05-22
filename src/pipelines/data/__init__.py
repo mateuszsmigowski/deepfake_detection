@@ -9,7 +9,6 @@ __all__ = [
     "ManifestManager",
     "OneOutSplitModel",
     "SplitManager",
-    "OneOutSplitBuilder",
     "SplitBuilder",
     "ImageRecordModel",
     "ImageLabel",

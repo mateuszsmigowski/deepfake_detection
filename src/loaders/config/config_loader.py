@@ -48,6 +48,7 @@ def _experiment_config(values: dict[str, Any]) -> ExperimentConfig:
     return ExperimentConfig(
         name=values["name"],
         mode=_experiment_mode(values["mode"]),
+        protocol=ExperimentConfig.Protocol(values.get("protocol", "generalization")),
         real_domain=values["real_domain"],
         fake_domains=values["fake_domains"],
         held_out_domain=values["held_out_domain"],
@@ -57,10 +58,11 @@ def _data_config(values: dict[str, Any], base_path: Path) -> DataConfig:
 
     return DataConfig(
         dataset_path=base_path / values["dataset_path"],
-        train_real=int(values["train_real"]),
-        train_fake=int(values["train_fake"]),
-        val_real=int(values["val_real"]),
-        val_fake=int(values["val_fake"]),
+        train_source_real=int(values.get("train_source_real", 0)),
+        train_source_fake=int(values.get("train_source_fake", 0)),
+        val_source_real=int(values.get("val_source_real", 0)),
+        val_source_fake=int(values.get("val_source_fake", 0)),
+        train_target_fake=int(values.get("train_target_fake", 0)),
     )
 
 def _runtime_config(values: dict[str, Any]) -> RuntimeConfig:

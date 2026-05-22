@@ -4,7 +4,7 @@ from src.pipelines.data.manifest import ManifestModel
 from src.pipelines.data.split.split_model import SplitModel, OneOutSplitModel
 from src.pipelines.data.image_record_model import ImageRecordModel
 from src.loaders.config import SplitConfig, ExperimentConfig
-from .one_out_builder import OneOutSplitBuilder
+from src.pipelines.data.split.builder import SplitBuilder
 
 
 _MANIFEST_FIELDNAMES = [
@@ -21,7 +21,11 @@ class SplitManager:
 
     @property
     def _split_dir(self) -> Path:
-        return self.split_config.path / f"held_out_{self.experiment_config.held_out_domain}"
+        return (
+            self.split_config.path 
+            / f"held_out_{self.experiment_config.held_out_domain}"
+            / self.experiment_config.protocol.value
+        )
 
     # MARK: - Initialization
 
@@ -30,14 +34,14 @@ class SplitManager:
         self.manifest = manifest
         self.split_config = split_config
         self.experiment_config = experiment_config
-        self.one_out_builder = OneOutSplitBuilder(manifest, split_config, experiment_config)
+        self.split_builder = SplitBuilder(manifest, split_config, experiment_config)
 
     def make_split(self) -> OneOutSplitModel:
 
         if self._split_exists():
             return self._read_split()
         else:
-            split = self.one_out_builder.build_split()
+            split = self.split_builder.build_split()
             self._write_split(split)
             return split
 

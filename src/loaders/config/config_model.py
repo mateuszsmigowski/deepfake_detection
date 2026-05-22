@@ -24,8 +24,13 @@ class ExperimentConfig:
         BASELINE = "baseline"
         DANN = "dann"
 
+    class Protocol(StrEnum):
+        GENERALIZATION = "generalization"
+        ADAPTATION = "adaptation"
+
     name: str
     mode: Mode
+    protocol: Protocol
     real_domain: str
     fake_domains: list[str]
     held_out_domain: str
@@ -49,15 +54,20 @@ class ExperimentConfig:
     @property
     def source_domain_to_int(self) -> dict[str, int]:
         return {domain: index for index, domain in enumerate(self.source_domains)}
+    
+    @property
+    def target_domain_to_int(self) -> dict[str, int]:
+        return {self.held_out_domain: 0}
 
 # MARK: - DataConfig
 @dataclass(frozen=True)
 class DataConfig:
     dataset_path: Path
-    train_real: int
-    train_fake: int
-    val_real: int
-    val_fake: int
+    train_source_real: int
+    train_source_fake: int
+    val_source_real: int
+    val_source_fake: int
+    train_target_fake: int
 
 # MARK: - RuntimeConfig
 @dataclass(frozen=True)

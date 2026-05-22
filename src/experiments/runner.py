@@ -9,7 +9,7 @@ class DANNVariant:
     domain_loss_weight: float | None = None
     freeze_backbone: bool | None = None
 
-SEEDS = [16516]
+SEEDS = [1315]
 
 DANN_ABLATIONS = [
     DANNVariant("dann-main"),
