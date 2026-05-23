@@ -9,7 +9,7 @@ class DANNVariant:
     domain_loss_weight: float | None = None
     freeze_backbone: bool | None = None
 
-SEEDS = [1315]
+SEEDS = [164]
 
 DANN_ABLATIONS = [
     DANNVariant("dann-main"),
@@ -21,7 +21,7 @@ DANN_ABLATIONS = [
     # DANNVariant("freeze-backbone", freeze_backbone=True),
 ]
 
-HELD_OUT_DOMAINS = ["Face2Face"]
+HELD_OUT_DOMAINS = ["Deepfakes"]
 
 def run_experiment(base_config: ConfigModel):
 

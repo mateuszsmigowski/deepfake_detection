@@ -25,13 +25,6 @@ class DANNPipeline:
             domain_to_int=source_domain_to_int,
             isTraining=True,
         )
-        target_train_loader = prepare_data_loader(
-            self.config,
-            target_train,
-            shuffle=True,
-            domain_to_int=target_domain_to_int,
-            isTraining=True,
-        )
         val_loader = prepare_data_loader(
             self.config,
             val_records,
@@ -60,6 +53,13 @@ class DANNPipeline:
                     test_loader,
                 )
             case ExperimentConfig.Protocol.ADAPTATION:
+                target_train_loader = prepare_data_loader(
+                    self.config,
+                    target_train,
+                    shuffle=True,
+                    domain_to_int=target_domain_to_int,
+                    isTraining=True,
+                )
                 trainer = DANNAdaptationTrainer(
                     self.config,
                     classifier,

@@ -27,7 +27,13 @@ class DANNClassifier(nn.Module):
 
     @staticmethod
     def _build_label_classifier(feature_dim: int) -> nn.Module:
-        return nn.Linear(feature_dim, 1)
+        
+        return nn.Sequential(
+            nn.Linear(feature_dim, 256),
+            nn.ReLU(),
+            nn.Dropout(0.5),
+            nn.Linear(256, 1),
+        )
 
     @staticmethod
     def _build_domain_classifier(feature_dim: int, domains_count: int) -> nn.Module:

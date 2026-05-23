@@ -15,7 +15,12 @@ class BaselineClassifier(nn.Module):
 
     @staticmethod
     def _build_label_classifier(feature_dim: int) -> nn.Module:
-        return nn.Linear(feature_dim, 1)
+        return nn.Sequential(
+            nn.Linear(feature_dim, 256),
+            nn.ReLU(),
+            nn.Dropout(0.5),
+            nn.Linear(256, 1),
+        )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         features = self.backbone(x)
