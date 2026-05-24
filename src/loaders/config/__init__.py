@@ -14,7 +14,6 @@ from .config_loader import load_config
 
 ExperimentMode = ExperimentConfig.Mode
 RuntimeDevice = RuntimeConfig.Device
-ModelArchitecture = ModelConfig.Architecture
 
 __all__ = [
     "ConfigModel",
@@ -29,6 +28,5 @@ __all__ = [
     "OutputsConfig",
     "ExperimentMode",
     "RuntimeDevice",
-    "ModelArchitecture",
     "load_config",
 ]

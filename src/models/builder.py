@@ -63,10 +63,6 @@ class ModelBuilder:
         return model, feature_dim
 
     @staticmethod
-    def get_transforms(architecture: ModelConfig.Architecture) -> v2.Transform:
-        return ModelBuilder.get_evaluation_transforms(architecture)
-
-    @staticmethod
     def get_evaluation_transforms(architecture: ModelConfig.Architecture) -> v2.Transform:
 
         weights = _ARCHITECTURE_WEIGHTS[architecture]

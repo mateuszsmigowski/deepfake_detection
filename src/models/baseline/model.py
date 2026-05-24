@@ -1,6 +1,5 @@
 import torch
 from torch import nn
-from torchvision.models import resnet18, ResNet18_Weights
 from src.loaders.config import ModelConfig
 from src.models.builder import ModelBuilder
 

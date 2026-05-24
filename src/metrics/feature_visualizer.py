@@ -14,8 +14,6 @@ class FeatureVisualizer:
         UMAP = "umap"
         TSNE = "tsne"
 
-    DOMAIN_NAMES = ("source", "target")
-
     def __init__(self, output_dir: Path):
         self._output_dir = output_dir / "feature_visualization"
         self._output_dir.mkdir(parents=True, exist_ok=True)
