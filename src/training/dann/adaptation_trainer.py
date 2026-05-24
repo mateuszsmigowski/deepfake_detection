@@ -1,7 +1,7 @@
 import torch
 from src.loaders.config import ConfigModel
 from torch.utils.data import DataLoader
-from src.metrics import DANNMetrics, MetricsLogger, BaselineMetrics
+from src.metrics import DANNMetrics, MetricsLogger, BaselineMetrics, FeatureVisualizer
 from src.training.helpers import resolve_device, build_optimizer, EarlyStopping, build_label_criterion
 from src.training.dann.grl_scheduler import compute_grl_lambda
 
@@ -29,6 +29,8 @@ class DANNAdaptationTrainer:
         self.domain_criterion = torch.nn.CrossEntropyLoss()
         self.metrics = DANNMetrics()
         self.logger = MetricsLogger(config)
+        self.feature_visualizer = FeatureVisualizer(self.logger.run_dir)
+        self.feature_visualization_interval = 5
         patience = config.training.early_stopping_patience
         self.early_stopping = EarlyStopping(patience) if patience is not None else None
 
@@ -47,6 +49,8 @@ class DANNAdaptationTrainer:
             )
             self.model.train()
             self.metrics.reset()
+            if epoch % self.feature_visualization_interval == 0:
+                self.feature_visualizer.reset()
 
             source_iter = iter(self.source_train_loader)
             target_iter = iter(self.target_train_loader)
@@ -72,8 +76,8 @@ class DANNAdaptationTrainer:
 
                 self.optimizer.zero_grad()
 
-                source_label_logits, source_domain_logits = self.model(source_images, grl_lambda)
-                _, target_domain_logits = self.model(target_images, grl_lambda)
+                source_label_logits, source_domain_logits, source_features = self.model(source_images, grl_lambda)
+                _, target_domain_logits, target_features = self.model(target_images, grl_lambda)
 
                 source_label_loss = self.label_criterion(source_label_logits, source_labels)
 
@@ -113,9 +117,22 @@ class DANNAdaptationTrainer:
                     domain_loss,
                     loss
                 )
+
+                if epoch % self.feature_visualization_interval == 0:
+                    self.feature_visualizer.add_batch(
+                        source_features, source_labels, self._extract_domain_names(source_batch)
+                    )
+                    self.feature_visualizer.add_batch(
+                        target_features, target_batch["label"].to(self.device), self._extract_domain_names(target_batch)
+                    )
                 
             metrics = self.metrics.get_metrics()
             self.logger.log_metrics("train", metrics, epoch + 1)
+
+            if epoch % self.feature_visualization_interval == 0:
+                output_path = self.feature_visualizer.flush(epoch + 1, "train")
+                if output_path is not None:
+                    print(f"Feature visualization saved to {output_path}")
 
             if (epoch + 1) % self.config.training.validation_interval == 0:
                 
@@ -151,7 +168,7 @@ class DANNAdaptationTrainer:
                 images = batch["image"].to(self.device)
                 labels = batch["label"].to(self.device)
 
-                label_logits, domain_logits = self.model(images, grl_lambda)
+                label_logits, domain_logits, _ = self.model(images, grl_lambda)
                 label_loss = self.label_criterion(label_logits, labels)
 
                 # if include_domain_metrics:
@@ -176,3 +193,6 @@ class DANNAdaptationTrainer:
                 )
 
         return metrics.get_metrics()
+
+    def _extract_domain_names(self, batch: dict) -> list[str]:
+        return batch["metadata"]["domain"]

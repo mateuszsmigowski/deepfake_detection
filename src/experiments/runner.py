@@ -21,7 +21,7 @@ DANN_ABLATIONS = [
     # DANNVariant("freeze-backbone", freeze_backbone=True),
 ]
 
-HELD_OUT_DOMAINS = ["Deepfakes"]
+HELD_OUT_DOMAINS = ["Face2Face"]
 
 def run_experiment(base_config: ConfigModel):
 
@@ -34,7 +34,7 @@ def run_experiment(base_config: ConfigModel):
                 seed=seed,
                 variant_name="baseline",
             )
-            orchestrate(baseline_config)
+            # orchestrate(baseline_config)
         
             for variant in DANN_ABLATIONS:
                 dann_config = _make_config(

@@ -1,7 +1,7 @@
 experiment:
   name: "testing"
   mode: "dann"
-  protocol: "generalization" # "generalization" "adaptation"
+  protocol: "adaptation" # "generalization" "adaptation"
   real_domain: "Original"
   fake_domains:
     - "Deepfakes"
@@ -13,14 +13,14 @@ experiment:
 
 data:
   dataset_path: "/Volumes/DyskSSD1T/Datasets/FaceForensics++ Extracted Dataset (C23)/FF++C32-Frames_cropped"
-  train_source_real: 1000
-  train_source_fake: 2000
-  val_source_real: 1000
+  train_source_real: 3000
+  train_source_fake: 3000
+  val_source_real: 2000
   val_source_fake: 2000
   train_target_fake: 3000
 
 runtime:
-  seed: 132
+  seed: 123
   device: "auto"
   deterministic: true
   num_workers: 4
@@ -50,7 +50,7 @@ training:
   pos_weight: true
 
 domain_adaptation:
-  gradient_reversal_lambda: 1.0
+  gradient_reversal_lambda: 0.1
   domain_loss_weight: 0.1
   grl_scheduler_enable: true
   grl_scheduler_gamma: 10.0

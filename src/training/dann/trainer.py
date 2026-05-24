@@ -53,7 +53,7 @@ class DANNTrainer:
 
                 self.optimizer.zero_grad()
 
-                label_logits, domain_logits = self.model(images, grl_lambda)
+                label_logits, domain_logits, _ = self.model(images, grl_lambda)
                 label_loss = self.label_criterion(label_logits, labels)
                 domain_loss = self.domain_criterion(domain_logits, domains)
                 loss = label_loss + self.config.domain_adaptation.domain_loss_weight * domain_loss
@@ -108,7 +108,7 @@ class DANNTrainer:
                 images = batch["image"].to(self.device)
                 labels = batch["label"].to(self.device)
 
-                label_logits, domain_logits = self.model(images, grl_lambda)
+                label_logits, domain_logits, _ = self.model(images, grl_lambda)
                 label_loss = self.label_criterion(label_logits, labels)
 
                 if include_domain_metrics:
