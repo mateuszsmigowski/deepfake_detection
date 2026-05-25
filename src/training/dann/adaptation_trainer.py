@@ -73,56 +73,86 @@ class DANNAdaptationTrainer:
                 source_images = source_batch["image"].to(self.device)
                 source_labels = source_batch["label"].to(self.device)
                 target_images = target_batch["image"].to(self.device)
+                target_labels = target_batch["label"].to(self.device)
 
                 self.optimizer.zero_grad()
 
-                source_fake_mask = source_labels == 1
+                source_fake_indices = torch.nonzero(source_labels == 1, as_tuple=False).flatten()
+                domain_batch_size = min(source_fake_indices.numel(), target_images.size(0))
+                source_domain_mask = torch.zeros_like(source_labels, dtype=torch.bool)
+                target_indices = torch.empty(0, dtype=torch.long, device=self.device)
+
+                if domain_batch_size > 0:
+                    source_indices = source_fake_indices[
+                        torch.randperm(source_fake_indices.numel(), device=self.device)[:domain_batch_size]
+                    ]
+                    target_indices = torch.randperm(
+                        target_images.size(0),
+                        device=self.device,
+                    )[:domain_batch_size]
+                    source_domain_mask[source_indices] = True
+
                 source_label_logits, source_domain_logits, source_features = self.model(
                     source_images,
                     grl_lambda,
-                    domain_mask=source_fake_mask,
+                    domain_mask=source_domain_mask,
                 )
-                _, target_domain_logits, target_features = self.model(target_images, grl_lambda)
+                selected_target_images = target_images[target_indices]
 
                 source_label_loss = self.label_criterion(source_label_logits, source_labels)
 
-                source_domain_labels = torch.zeros(
-                    source_domain_logits.size(0),
-                    dtype=torch.long,
-                    device=self.device,
-                )
-                target_domain_labels = torch.ones(
-                    target_domain_logits.size(0),
-                    dtype=torch.long,
-                    device=self.device,
-                )
+                if domain_batch_size > 0:
+                    _, target_domain_logits, target_features = self.model(selected_target_images, grl_lambda)
+                    source_domain_labels = torch.zeros(
+                        source_domain_logits.size(0),
+                        dtype=torch.long,
+                        device=self.device,
+                    )
+                    target_domain_labels = torch.ones(
+                        target_domain_logits.size(0),
+                        dtype=torch.long,
+                        device=self.device,
+                    )
 
-                domain_logits = torch.cat([source_domain_logits, target_domain_logits], dim=0)
-                domain_labels = torch.cat([source_domain_labels, target_domain_labels], dim=0)
-                domain_loss = self.domain_criterion(domain_logits, domain_labels)
-
-                loss = source_label_loss + self.config.domain_adaptation.domain_loss_weight * domain_loss
+                    domain_logits = torch.cat([source_domain_logits, target_domain_logits], dim=0)
+                    domain_labels = torch.cat([source_domain_labels, target_domain_labels], dim=0)
+                    domain_loss = self.domain_criterion(domain_logits, domain_labels)
+                    loss = source_label_loss + self.config.domain_adaptation.domain_loss_weight * domain_loss
+                else:
+                    target_features = None
+                    loss = source_label_loss
 
                 loss.backward()
                 self.optimizer.step()
 
-                self.metrics.update(
-                    source_labels,
-                    domain_labels,
-                    source_label_logits,
-                    domain_logits,
-                    source_label_loss,
-                    domain_loss,
-                    loss
-                )
+                if domain_batch_size > 0:
+                    self.metrics.update(
+                        source_labels,
+                        domain_labels,
+                        source_label_logits,
+                        domain_logits,
+                        source_label_loss,
+                        domain_loss,
+                        loss
+                    )
+                else:
+                    self.metrics.update_label_only(
+                        source_labels,
+                        source_label_logits,
+                        source_label_loss,
+                        loss,
+                    )
 
                 if epoch % self.feature_visualization_interval == 0:
                     self.feature_visualizer.add_batch(
                         source_features, source_labels, self._extract_domain_names(source_batch)
                     )
-                    self.feature_visualizer.add_batch(
-                        target_features, target_batch["label"].to(self.device), self._extract_domain_names(target_batch)
-                    )
+                    if target_features is not None:
+                        self.feature_visualizer.add_batch(
+                            target_features,
+                            target_labels[target_indices],
+                            self._extract_selected_domain_names(target_batch, target_indices),
+                        )
                 
             metrics = self.metrics.get_metrics()
             self.logger.log_metrics("train", metrics, epoch + 1)
@@ -194,3 +224,7 @@ class DANNAdaptationTrainer:
 
     def _extract_domain_names(self, batch: dict) -> list[str]:
         return batch["metadata"]["domain"]
+
+    def _extract_selected_domain_names(self, batch: dict, indices: torch.Tensor) -> list[str]:
+        domain_names = self._extract_domain_names(batch)
+        return [domain_names[index] for index in indices.cpu().tolist()]
