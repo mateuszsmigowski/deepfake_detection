@@ -1,4 +1,3 @@
-from enum import StrEnum
 from dataclasses import dataclass
 from src.pipelines.data.image_record_model import ImageRecordModel
 

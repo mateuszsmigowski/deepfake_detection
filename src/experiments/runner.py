@@ -9,7 +9,7 @@ class DANNVariant:
     domain_loss_weight: float | None = None
     freeze_backbone: bool | None = None
 
-SEEDS = [164]
+SEEDS = [948]
 
 DANN_ABLATIONS = [
     DANNVariant("dann-main"),
@@ -34,7 +34,7 @@ def run_experiment(base_config: ConfigModel):
                 seed=seed,
                 variant_name="baseline",
             )
-            # orchestrate(baseline_config)
+            orchestrate(baseline_config)
         
             for variant in DANN_ABLATIONS:
                 dann_config = _make_config(
@@ -61,6 +61,8 @@ def _make_config(
         mode.value,
         held_out_domain,
         seed,
+        config.model.architecture.value,
+        config.experiment.protocol.value,
         variant_name,
     )
     domain_adaptation = config.domain_adaptation
@@ -104,12 +106,16 @@ def _experiment_name(
     mode: str,
     held_out_domain: str,
     seed: int,
+    architecture: str,
+    protocol: str,
     variant_name: str,
 ) -> str:
 
     return "_".join([
         _safe(base_name),
         _safe(mode),
+        _safe(protocol),
+        _safe(architecture),
         f"held-out-{_safe(held_out_domain)}",
         f"seed-{seed}",
         _safe(variant_name),

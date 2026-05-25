@@ -15,8 +15,8 @@ data:
   dataset_path: "/Volumes/DyskSSD1T/Datasets/FaceForensics++ Extracted Dataset (C23)/FF++C32-Frames_cropped"
   train_source_real: 3000
   train_source_fake: 3000
-  val_source_real: 2000
-  val_source_fake: 2000
+  val_source_real: 500
+  val_source_fake: 500
   train_target_fake: 3000
 
 runtime:
