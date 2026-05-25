@@ -50,10 +50,15 @@ class DANNClassifier(nn.Module):
         x: torch.Tensor,
         grl_lambda: float | None = None,
         domain_mask: torch.Tensor | None = None,
+        skip_domain: bool = False,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
 
         features = self.backbone(x)
         label_logits = self.label_classifier(features).squeeze(dim=1)
+
+        if skip_domain:
+            domain_logits = self._empty_domain_logits(features)
+            return label_logits, domain_logits, features
 
         lambda_ = (
             grl_lambda
@@ -68,3 +73,7 @@ class DANNClassifier(nn.Module):
         )
         domain_logits = self.domain_classifier(reversed_features)
         return label_logits, domain_logits, features
+
+    def _empty_domain_logits(self, features: torch.Tensor) -> torch.Tensor:
+        output_features = self.domain_classifier[-1].out_features
+        return features.new_empty((0, output_features))

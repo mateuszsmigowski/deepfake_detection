@@ -131,6 +131,7 @@ class DANNGeneralizationTrainer:
                     images,
                     grl_lambda,
                     domain_mask=domain_mask,
+                    skip_domain=not include_domain_metrics,
                 )
                 label_loss = self.label_criterion(label_logits, labels)
 

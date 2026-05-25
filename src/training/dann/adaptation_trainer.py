@@ -196,7 +196,11 @@ class DANNAdaptationTrainer:
                 images = batch["image"].to(self.device)
                 labels = batch["label"].to(self.device)
 
-                label_logits, domain_logits, _ = self.model(images, grl_lambda)
+                label_logits, _, _ = self.model(
+                    images,
+                    grl_lambda,
+                    skip_domain=not include_domain_metrics,
+                )
                 label_loss = self.label_criterion(label_logits, labels)
 
                 # if include_domain_metrics:
