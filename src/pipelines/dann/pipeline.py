@@ -66,10 +66,64 @@ class DANNPipeline:
         target_train: list[ImageRecordModel],
         val_records: list[ImageRecordModel],
         test_records: list[ImageRecordModel],
-    ):
+    ) -> tuple[DataLoader, DataLoader | None, DataLoader, DataLoader]:
+
+        match self.config.experiment.protocol:
+            case ExperimentConfig.Protocol.GENERALIZATION:
+                return self._prepare_generalization_data_loaders(
+                    train_records,
+                    val_records,
+                    test_records,
+                )
+            case ExperimentConfig.Protocol.ADAPTATION:
+                return self._prepare_adaptation_data_loaders(
+                    train_records,
+                    target_train,
+                    val_records,
+                    test_records,
+                )
+            case _:
+                raise ValueError(f"Invalid protocol: {self.config.experiment.protocol}")
+
+    def _prepare_generalization_data_loaders(
+        self,
+        train_records: list[ImageRecordModel],
+        val_records: list[ImageRecordModel],
+        test_records: list[ImageRecordModel],
+    ) -> tuple[DataLoader, None, DataLoader, DataLoader]:
 
         source_domain_to_int = self.config.experiment.source_domain_to_int
-        target_domain_to_int = self.config.experiment.target_domain_to_int
+
+        source_train_loader = prepare_data_loader(
+            self.config,
+            train_records,
+            shuffle=True,
+            domain_to_int=source_domain_to_int,
+            isTraining=True,
+        )
+        val_loader = prepare_data_loader(
+            self.config,
+            val_records,
+            shuffle=False,
+            domain_to_int=source_domain_to_int,
+        )
+        test_loader = prepare_data_loader(
+            self.config,
+            test_records,
+            shuffle=False,
+        )
+        return source_train_loader, None, val_loader, test_loader
+
+    def _prepare_adaptation_data_loaders(
+        self,
+        train_records: list[ImageRecordModel],
+        target_train: list[ImageRecordModel],
+        val_records: list[ImageRecordModel],
+        test_records: list[ImageRecordModel],
+    ) -> tuple[DataLoader, DataLoader, DataLoader, DataLoader]:
+
+        source_domain_to_int = self.config.experiment.source_domain_to_int
+        target_domain_to_int = {self.config.experiment.held_out_domain: 1}
 
         source_train_loader = prepare_data_loader(
             self.config,
@@ -102,7 +156,7 @@ class DANNPipeline:
         self,
         classifier: DANNClassifier,
         source_train_loader: DataLoader,
-        target_train_loader: DataLoader,
+        target_train_loader: DataLoader | None,
         val_loader: DataLoader,
         test_loader: DataLoader,
     ):
@@ -117,6 +171,9 @@ class DANNPipeline:
                     test_loader,
                 )
             case ExperimentConfig.Protocol.ADAPTATION:
+                if target_train_loader is None:
+                    raise ValueError("Target train loader is required for DANN adaptation.")
+
                 trainer = DANNAdaptationTrainer(
                     self.config,
                     classifier,
