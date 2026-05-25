@@ -76,7 +76,12 @@ class DANNAdaptationTrainer:
 
                 self.optimizer.zero_grad()
 
-                source_label_logits, source_domain_logits, source_features = self.model(source_images, grl_lambda)
+                source_fake_mask = source_labels == 1
+                source_label_logits, source_domain_logits, source_features = self.model(
+                    source_images,
+                    grl_lambda,
+                    domain_mask=source_fake_mask,
+                )
                 _, target_domain_logits, target_features = self.model(target_images, grl_lambda)
 
                 source_label_loss = self.label_criterion(source_label_logits, source_labels)
@@ -92,16 +97,9 @@ class DANNAdaptationTrainer:
                     device=self.device,
                 )
 
-                source_domain_loss = self.domain_criterion(
-                    source_domain_logits,
-                    source_domain_labels
-                )
-                target_domain_loss = self.domain_criterion(
-                    target_domain_logits,
-                    target_domain_labels
-                )
-
-                domain_loss = (source_domain_loss + target_domain_loss) / 2.0
+                domain_logits = torch.cat([source_domain_logits, target_domain_logits], dim=0)
+                domain_labels = torch.cat([source_domain_labels, target_domain_labels], dim=0)
+                domain_loss = self.domain_criterion(domain_logits, domain_labels)
 
                 loss = source_label_loss + self.config.domain_adaptation.domain_loss_weight * domain_loss
 
@@ -110,9 +108,9 @@ class DANNAdaptationTrainer:
 
                 self.metrics.update(
                     source_labels,
-                    source_domain_labels,
+                    domain_labels,
                     source_label_logits,
-                    source_domain_logits,
+                    domain_logits,
                     source_label_loss,
                     domain_loss,
                     loss

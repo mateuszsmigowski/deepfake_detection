@@ -45,9 +45,12 @@ class DANNClassifier(nn.Module):
             nn.Linear(256, domains_count),
         )
 
-    def forward(self, x: torch.Tensor, grl_lambda: float | None = None) -> (
-        tuple[torch.Tensor, torch.Tensor, torch.Tensor]
-    ):
+    def forward(
+        self,
+        x: torch.Tensor,
+        grl_lambda: float | None = None,
+        domain_mask: torch.Tensor | None = None,
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
 
         features = self.backbone(x)
         label_logits = self.label_classifier(features).squeeze(dim=1)
@@ -58,8 +61,9 @@ class DANNClassifier(nn.Module):
             else self.domain_adaptation_config.gradient_reversal_lambda
         )
 
+        domain_features = features if domain_mask is None else features[domain_mask]
         reversed_features = self.gradient_reversal_layer(
-            features,
+            domain_features,
             lambda_,
         )
         domain_logits = self.domain_classifier(reversed_features)

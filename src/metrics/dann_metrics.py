@@ -22,14 +22,15 @@ class DANNMetrics(BaselineMetrics):
     ):
         super().update(labels, label_logits, label_loss)
 
-        batch_size = labels.size(0)
+        label_batch_size = labels.size(0)
+        domain_batch_size = domains.size(0)
 
-        self.total_loss += total_loss.item() * batch_size
-        self.domain_loss += domain_loss.item() * batch_size
+        self.total_loss += total_loss.item() * label_batch_size
+        self.domain_loss += domain_loss.item() * domain_batch_size
         
         domain_predictions = torch.argmax(domain_logits, dim=1)
         self.domain_correct += (domain_predictions == domains).sum().item()
-        self.domain_total += batch_size
+        self.domain_total += domain_batch_size
 
     def get_metrics(self) -> dict[str, float]:
 
