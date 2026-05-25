@@ -53,23 +53,41 @@ class DANNGeneralizationTrainer:
 
                 self.optimizer.zero_grad()
 
-                label_logits, domain_logits, _ = self.model(images, grl_lambda)
+                domain_mask = labels == 1
+                label_logits, domain_logits, _ = self.model(
+                    images,
+                    grl_lambda,
+                    domain_mask=domain_mask,
+                )
                 label_loss = self.label_criterion(label_logits, labels)
-                domain_loss = self.domain_criterion(domain_logits, domains)
-                loss = label_loss + self.config.domain_adaptation.domain_loss_weight * domain_loss
+                domain_labels = domains[domain_mask]
+
+                if domain_labels.numel() > 0:
+                    domain_loss = self.domain_criterion(domain_logits, domain_labels)
+                    loss = label_loss + self.config.domain_adaptation.domain_loss_weight * domain_loss
+                else:
+                    loss = label_loss
 
                 loss.backward()
                 self.optimizer.step()
 
-                self.metrics.update(
-                    labels,
-                    domains,
-                    label_logits,
-                    domain_logits,
-                    label_loss,
-                    domain_loss,
-                    loss
-                )
+                if domain_labels.numel() > 0:
+                    self.metrics.update(
+                        labels,
+                        domain_labels,
+                        label_logits,
+                        domain_logits,
+                        label_loss,
+                        domain_loss,
+                        loss
+                    )
+                else:
+                    self.metrics.update_label_only(
+                        labels,
+                        label_logits,
+                        label_loss,
+                        loss,
+                    )
                 
             metrics = self.metrics.get_metrics()
             self.logger.log_metrics("train", metrics, epoch + 1)
@@ -108,23 +126,38 @@ class DANNGeneralizationTrainer:
                 images = batch["image"].to(self.device)
                 labels = batch["label"].to(self.device)
 
-                label_logits, domain_logits, _ = self.model(images, grl_lambda)
+                domain_mask = labels == 1
+                label_logits, domain_logits, _ = self.model(
+                    images,
+                    grl_lambda,
+                    domain_mask=domain_mask,
+                )
                 label_loss = self.label_criterion(label_logits, labels)
 
                 if include_domain_metrics:
                     domains = batch["domain"].to(self.device)
-                    domain_loss = self.domain_criterion(domain_logits, domains)
-                    loss = label_loss + self.config.domain_adaptation.domain_loss_weight * domain_loss
+                    domain_labels = domains[domain_mask]
 
-                    metrics.update(
-                        labels,
-                        domains,
-                        label_logits,
-                        domain_logits,
-                        label_loss,
-                        domain_loss,
-                        loss,
-                    )
+                    if domain_labels.numel() > 0:
+                        domain_loss = self.domain_criterion(domain_logits, domain_labels)
+                        loss = label_loss + self.config.domain_adaptation.domain_loss_weight * domain_loss
+
+                        metrics.update(
+                            labels,
+                            domain_labels,
+                            label_logits,
+                            domain_logits,
+                            label_loss,
+                            domain_loss,
+                            loss,
+                        )
+                    else:
+                        metrics.update_label_only(
+                            labels,
+                            label_logits,
+                            label_loss,
+                            label_loss,
+                        )
                 else:
                     metrics.update(
                         labels,

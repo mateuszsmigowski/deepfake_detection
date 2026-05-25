@@ -92,7 +92,7 @@ class DANNPipeline:
         test_records: list[ImageRecordModel],
     ) -> tuple[DataLoader, None, DataLoader, DataLoader]:
 
-        source_domain_to_int = self.config.experiment.source_domain_to_int
+        source_domain_to_int = self._generalization_domain_to_int()
 
         source_train_loader = prepare_data_loader(
             self.config,
@@ -188,6 +188,21 @@ class DANNPipeline:
 
         match self.config.experiment.protocol:
             case ExperimentConfig.Protocol.GENERALIZATION:
-                return len(self.config.experiment.source_domain_to_int)
+                return len(self._source_fake_domains())
             case ExperimentConfig.Protocol.ADAPTATION:
                 return 2 # TODO: Remove magic number, should be calculated
+
+    def _source_fake_domains(self) -> list[str]:
+        return [
+            domain
+            for domain in self.config.experiment.fake_domains
+            if domain != self.config.experiment.held_out_domain
+        ]
+
+    def _generalization_domain_to_int(self) -> dict[str, int]:
+        domain_to_int = {
+            domain: index
+            for index, domain in enumerate(self._source_fake_domains())
+        }
+        domain_to_int[self.config.experiment.real_domain] = -1
+        return domain_to_int

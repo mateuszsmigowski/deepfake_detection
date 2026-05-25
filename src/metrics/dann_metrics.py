@@ -32,6 +32,16 @@ class DANNMetrics(BaselineMetrics):
         self.domain_correct += (domain_predictions == domains).sum().item()
         self.domain_total += domain_batch_size
 
+    def update_label_only(
+        self,
+        labels: torch.Tensor,
+        label_logits: torch.Tensor,
+        label_loss: torch.Tensor,
+        total_loss: torch.Tensor,
+    ):
+        super().update(labels, label_logits, label_loss)
+        self.total_loss += total_loss.item() * labels.size(0)
+
     def get_metrics(self) -> dict[str, float]:
 
         if self.label_total == 0 or self.domain_total == 0:
