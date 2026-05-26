@@ -41,7 +41,7 @@ class DANNAdaptationTrainer:
         for epoch in range(self.config.training.epochs):
             
             grl_lambda = compute_grl_lambda(
-                epoch + 1,
+                epoch,
                 self.config.training.epochs,
                 self.config.domain_adaptation.gradient_reversal_lambda,
                 self.config.domain_adaptation.grl_scheduler_gamma,

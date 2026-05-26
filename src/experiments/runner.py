@@ -1,5 +1,5 @@
 from dataclasses import dataclass, replace
-from src.loaders.config import ConfigModel, ExperimentMode
+from src.loaders.config import ConfigModel, ExperimentConfig, ExperimentMode, ModelConfig
 from src.orchestrator import orchestrate
 
 @dataclass(frozen=True)
@@ -9,7 +9,18 @@ class DANNVariant:
     domain_loss_weight: float | None = None
     freeze_backbone: bool | None = None
 
-SEEDS = [948]
+SEEDS = [123, 948, 2024]
+
+MODEL_ARCHITECTURES = [
+    ModelConfig.Architecture.RESNET18,
+    ModelConfig.Architecture.RESNET50,
+    ModelConfig.Architecture.EFFICIENTNET_B0,
+]
+
+PROTOCOLS = [
+    ExperimentConfig.Protocol.GENERALIZATION,
+    ExperimentConfig.Protocol.ADAPTATION,
+]
 
 DANN_ABLATIONS = [
     DANNVariant("dann-main"),
@@ -21,35 +32,48 @@ DANN_ABLATIONS = [
     # DANNVariant("freeze-backbone", freeze_backbone=True),
 ]
 
-HELD_OUT_DOMAINS = ["Face2Face"]
+HELD_OUT_DOMAINS = [
+    "Deepfakes",
+    "Face2Face",
+    "FaceSwap",
+    "NeuralTextures",
+]
 
 def run_experiment(base_config: ConfigModel):
 
     for held_out_domain in HELD_OUT_DOMAINS:
-        for seed in SEEDS:
-            baseline_config = _make_config(
-                base_config,
-                mode=ExperimentMode.BASELINE,
-                held_out_domain=held_out_domain,
-                seed=seed,
-                variant_name="baseline",
-            )
-            orchestrate(baseline_config)
-        
-            for variant in DANN_ABLATIONS:
-                dann_config = _make_config(
-                    base_config,
-                    mode=ExperimentMode.DANN,
-                    held_out_domain=held_out_domain,
-                    seed=seed,
-                    variant_name=variant.name,
-                    variant=variant,
-                )
-                orchestrate(dann_config)
+        for architecture in MODEL_ARCHITECTURES:
+            for protocol in PROTOCOLS:
+                for seed in SEEDS:
+                    baseline_config = _make_config(
+                        base_config,
+                        mode=ExperimentMode.BASELINE,
+                        protocol=protocol,
+                        architecture=architecture,
+                        held_out_domain=held_out_domain,
+                        seed=seed,
+                        variant_name="baseline",
+                    )
+                    orchestrate(baseline_config)
+
+                    for variant in DANN_ABLATIONS:
+                        dann_config = _make_config(
+                            base_config,
+                            mode=ExperimentMode.DANN,
+                            protocol=protocol,
+                            architecture=architecture,
+                            held_out_domain=held_out_domain,
+                            seed=seed,
+                            variant_name=variant.name,
+                            variant=variant,
+                        )
+                        orchestrate(dann_config)
 
 def _make_config(
     config: ConfigModel,
     mode: ExperimentMode,
+    protocol: ExperimentConfig.Protocol,
+    architecture: ModelConfig.Architecture,
     held_out_domain: str,
     seed: int,
     variant_name: str,
@@ -61,12 +85,12 @@ def _make_config(
         mode.value,
         held_out_domain,
         seed,
-        config.model.architecture.value,
-        config.experiment.protocol.value,
+        architecture.value,
+        protocol.value,
         variant_name,
     )
     domain_adaptation = config.domain_adaptation
-    model = config.model
+    model = replace(config.model, architecture=architecture)
 
     if variant is not None:
 
@@ -94,6 +118,7 @@ def _make_config(
             config.experiment,
             name=experiment_name,
             mode=mode,
+            protocol=protocol,
             held_out_domain=held_out_domain,
         ),
         runtime=replace(config.runtime, seed=seed),
