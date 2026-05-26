@@ -22,8 +22,9 @@ htmlcov/
 .env
 .env.*
 
-# Experiment run outputs (checkpoints, metrics, saved configs)
-config/runs/
+# Experiment run outputs — track metrics/config, ignore model checkpoints
+config/runs/**/*.pt
+runs/**/*.pt
 
 # Dataset manifests and splits (generated locally)
 manifests/

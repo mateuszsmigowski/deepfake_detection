@@ -1,0 +1,66 @@
+{
+    "experiment": {
+        "name": "testing_dann_adaptation_resnet50_held-out-Deepfakes_seed-123_dann-main",
+        "mode": "dann",
+        "protocol": "adaptation",
+        "real_domain": "Original",
+        "fake_domains": [
+            "Deepfakes",
+            "Face2Face",
+            "FaceSwap",
+            "NeuralTextures",
+            "FaceShifter"
+        ],
+        "held_out_domain": "Deepfakes"
+    },
+    "data": {
+        "dataset_path": "/Volumes/DyskSSD1T/Datasets/FaceForensics++ Extracted Dataset (C23)/FF++C32-Frames_cropped",
+        "train_source_real": 3000,
+        "train_source_fake": 3000,
+        "val_source_real": 500,
+        "val_source_fake": 500,
+        "train_target_fake": 3000
+    },
+    "runtime": {
+        "seed": 123,
+        "device": "auto",
+        "deterministic": true,
+        "num_workers": 4
+    },
+    "model": {
+        "architecture": "resnet50",
+        "pretrained": true,
+        "freeze_backbone": false
+    },
+    "manifest": {
+        "path": "/Users/mateuszsmigowski/Documents/magisterka/Dyplom/DANN/config/../manifests/manifest.csv"
+    },
+    "training": {
+        "epochs": 20,
+        "batch_size": 32,
+        "learning_rate": 0.0002,
+        "weight_decay": 0.0001,
+        "validation_interval": 1,
+        "early_stopping_patience": 5,
+        "pos_weight": true
+    },
+    "split": {
+        "train_ratio": 0.7,
+        "validation_ratio": 0.15,
+        "test_ratio": 0.15,
+        "seed": 156,
+        "path": "/Users/mateuszsmigowski/Documents/magisterka/Dyplom/DANN/config/../manifests/splits"
+    },
+    "domain_adaptation": {
+        "gradient_reversal_lambda": 0.1,
+        "domain_loss_weight": 0.1,
+        "grl_scheduler_enable": true,
+        "grl_scheduler_gamma": 10.0
+    },
+    "outputs": {
+        "runs_path": "/Users/mateuszsmigowski/Documents/magisterka/Dyplom/DANN/config/runs",
+        "save_checkpoints": true,
+        "save_metrics": true,
+        "checkpoint_metric": "validation_balanced_accuracy"
+    }
+}
