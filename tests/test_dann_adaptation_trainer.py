@@ -31,9 +31,21 @@ class DummyDANN(torch.nn.Module):
         super().__init__()
         self.weight = torch.nn.Parameter(torch.tensor(0.0))
 
-    def forward(self, images, grl_lambda=None, domain_mask=None, skip_domain=False):
+    def forward(
+        self,
+        images,
+        grl_lambda=None,
+        label_mask=None,
+        domain_mask=None,
+        skip_domain=False,
+    ):
         batch_size = images.size(0)
-        label_logits = self.weight.expand(batch_size)
+        label_batch_size = (
+            int(label_mask.sum().item())
+            if label_mask is not None
+            else batch_size
+        )
+        label_logits = self.weight.expand(label_batch_size)
         features = self.weight.expand(batch_size, 2)
 
         if skip_domain:
@@ -160,13 +172,14 @@ class DANNAdaptationTrainerTests(unittest.TestCase):
     def test_adaptation_label_loss_uses_only_source_labels(self):
         with TemporaryDirectory() as directory:
             tmp_path = Path(directory)
-            source_loader = _loader(
+            source_label_loader = _loader(
                 [
                     _batch(0, -1, "Original"),
                     _batch(1, 0, "Deepfakes"),
                 ],
             )
-            target_loader = _loader([_batch(1, 1, "Face2Face")], batch_size=1)
+            source_domain_loader = _loader([_batch(1, 0, "Deepfakes")], batch_size=1)
+            target_domain_loader = _loader([_batch(1, 1, "Face2Face")], batch_size=1)
             evaluation_loader = _loader(
                 [
                     _batch(0, -1, "Original"),
@@ -177,8 +190,9 @@ class DANNAdaptationTrainerTests(unittest.TestCase):
             trainer = DANNAdaptationTrainer(
                 _config(tmp_path),
                 DummyDANN(),
-                source_loader,
-                target_loader,
+                source_label_loader,
+                source_domain_loader,
+                target_domain_loader,
                 evaluation_loader,
                 evaluation_loader,
             )

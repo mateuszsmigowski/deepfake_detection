@@ -16,20 +16,28 @@ class AdaptationLabeledBatch:
 
 class AdaptationBatchIterator:
 
-    def __init__(self, source_train_loader: DataLoader, target_train_loader: DataLoader):
+    def __init__(
+        self,
+        source_label_loader: DataLoader,
+        source_domain_loader: DataLoader,
+        target_domain_loader: DataLoader,
+    ):
 
-        self._source_loader = source_train_loader
-        self._target_loader = target_train_loader
-        self._source_iter = None
-        self._target_iter = None
-        self._steps_per_epoch = len(self._source_loader)
+        self._source_label_loader = source_label_loader
+        self._source_domain_loader = source_domain_loader
+        self._target_domain_loader = target_domain_loader
+        self._source_label_iter = None
+        self._source_domain_iter = None
+        self._target_domain_iter = None
+        self._steps_per_epoch = len(self._source_label_loader)
         self._current_step = 0
 
     def __iter__(self):
 
         self._current_step = 0
-        self._source_iter = iter(self._source_loader)
-        self._target_iter = iter(self._target_loader)
+        self._source_label_iter = iter(self._source_label_loader)
+        self._source_domain_iter = iter(self._source_domain_loader)
+        self._target_domain_iter = iter(self._target_domain_loader)
         
         return self
 
@@ -40,34 +48,35 @@ class AdaptationBatchIterator:
 
         self._current_step += 1
 
-        source_batch = self._next_source_batch()
-        adapted_source_batch = AdaptationLabeledBatch(
-            images=source_batch["image"],
-            labels=source_batch["label"],
-            domains=source_batch["domain"],
-            metadata=source_batch["metadata"],
+        return (
+            self._adapt(self._next_source_label_batch()),
+            self._adapt(self._next_source_domain_batch()),
+            self._adapt(self._next_target_domain_batch()),
         )
 
-        target_batch = self._next_target_batch()
-        adapted_target_batch = AdaptationLabeledBatch(
-            images=target_batch["image"],
-            labels=target_batch["label"],
-            domains=target_batch["domain"],
-            metadata=target_batch["metadata"],
+    @staticmethod
+    def _adapt(batch) -> AdaptationLabeledBatch:
+        return AdaptationLabeledBatch(
+            images=batch["image"],
+            labels=batch["label"],
+            domains=batch["domain"],
+            metadata=batch["metadata"],
         )
 
-        return adapted_source_batch, adapted_target_batch
+    def _next_source_label_batch(self):
+        return self._next_batch("_source_label_iter", self._source_label_loader)
 
-    def _next_source_batch(self):
-        try:
-            return next(self._source_iter)
-        except StopIteration:
-            self._source_iter = iter(self._source_loader)
-            return next(self._source_iter)
+    def _next_source_domain_batch(self):
+        return self._next_batch("_source_domain_iter", self._source_domain_loader)
 
-    def _next_target_batch(self):
+    def _next_target_domain_batch(self):
+        return self._next_batch("_target_domain_iter", self._target_domain_loader)
+
+    def _next_batch(self, iterator_name: str, loader: DataLoader):
+        iterator = getattr(self, iterator_name)
         try:
-            return next(self._target_iter)
+            return next(iterator)
         except StopIteration:
-            self._target_iter = iter(self._target_loader)
-            return next(self._target_iter)
+            iterator = iter(loader)
+            setattr(self, iterator_name, iterator)
+            return next(iterator)

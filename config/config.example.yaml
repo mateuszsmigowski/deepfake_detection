@@ -54,6 +54,7 @@ domain_adaptation:
   domain_loss_weight: 0.1
   grl_scheduler_enable: true
   grl_scheduler_gamma: 10.0
+  domain_batch_size: 16
 
 outputs:
   runs_path: "runs"

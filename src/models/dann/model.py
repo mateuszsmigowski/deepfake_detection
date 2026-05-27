@@ -57,12 +57,14 @@ class DANNClassifier(nn.Module):
         self,
         x: torch.Tensor,
         grl_lambda: float | None = None,
+        label_mask: torch.Tensor | None = None,
         domain_mask: torch.Tensor | None = None,
         skip_domain: bool = False,
     ) -> ModelOutput:
 
         features = self.backbone(x)
-        label_logits = self.label_classifier(features).squeeze(dim=1)
+        label_features = features if label_mask is None else features[label_mask]
+        label_logits = self.label_classifier(label_features).squeeze(dim=1)
 
         if skip_domain:
             domain_logits = features.new_empty((0, self.domains_count))

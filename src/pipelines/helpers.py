@@ -13,6 +13,8 @@ def prepare_data_loader(
     shuffle: bool = True,
     domain_to_int: dict[str, int] | None = None,
     isTraining: bool = False,
+    batch_size: int | None = None,
+    drop_last: bool = False,
 ) -> DataLoader:
 
     if not records:
@@ -35,10 +37,11 @@ def prepare_data_loader(
     )
     return DataLoader(
         image_dataset,
-        batch_size=config.training.batch_size,
+        batch_size=batch_size or config.training.batch_size,
         shuffle=shuffle,
         num_workers=config.runtime.num_workers,
         persistent_workers=config.runtime.num_workers > 0,
+        drop_last=drop_last,
     )
 
 def prepare_records(config: ConfigModel, split: SplitModel) -> tuple[

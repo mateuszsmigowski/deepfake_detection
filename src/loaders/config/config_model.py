@@ -144,6 +144,7 @@ class DomainAdaptationConfig:
     domain_loss_weight: float
     grl_scheduler_enable: bool = False
     grl_scheduler_gamma: float = 10.0
+    domain_batch_size: int | None = None
 
 # MARK: - OutputsConfig
 @dataclass(frozen=True)

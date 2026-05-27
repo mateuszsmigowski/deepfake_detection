@@ -125,11 +125,18 @@ def _split_config(values: dict[str, Any], base_path: Path) -> SplitConfig:
     )
 
 def _domain_adaptation_config(values: dict[str, Any]) -> DomainAdaptationConfig:
+    domain_batch_size = values.get("domain_batch_size", None)
+
     return DomainAdaptationConfig(
         gradient_reversal_lambda=values["gradient_reversal_lambda"],
         domain_loss_weight=values["domain_loss_weight"],
         grl_scheduler_enable=bool(values.get("grl_scheduler_enable", False)),
         grl_scheduler_gamma=float(values.get("grl_scheduler_gamma", 10.0)),
+        domain_batch_size=(
+            int(domain_batch_size)
+            if domain_batch_size is not None
+            else None
+        ),
     )
 
 def _outputs_config(values: dict[str, Any], base_path: Path) -> OutputsConfig:

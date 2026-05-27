@@ -44,18 +44,23 @@ class DANNPipeline:
                     test_loader,
                 )
             case ExperimentConfig.Protocol.ADAPTATION:
-                source_train_loader, target_train_loader, val_loader, test_loader = (
-                    self._prepare_adaptation_data_loaders(
-                        train_records,
-                        val_records,
-                        test_records,
-                    )
+                (
+                    source_label_loader,
+                    source_domain_loader,
+                    target_domain_loader,
+                    val_loader,
+                    test_loader,
+                ) = self._prepare_adaptation_data_loaders(
+                    train_records,
+                    val_records,
+                    test_records,
                 )
                 trainer = DANNAdaptationTrainer(
                     self.config,
                     classifier,
-                    source_train_loader,
-                    target_train_loader,
+                    source_label_loader,
+                    source_domain_loader,
+                    target_domain_loader,
                     val_loader,
                     test_loader,
                 )
@@ -114,25 +119,41 @@ class DANNPipeline:
         train_records: list[ImageRecordModel],
         val_records: list[ImageRecordModel],
         test_records: list[ImageRecordModel],
-    ) -> tuple[DataLoader, DataLoader, DataLoader, DataLoader]:
+    ) -> tuple[DataLoader, DataLoader, DataLoader, DataLoader, DataLoader]:
 
-        source_records = self._adaptation_source_records(train_records)
-        target_records = self._adaptation_target_records(train_records)
+        source_label_records = self._adaptation_source_label_records(train_records)
+        source_domain_records = self._adaptation_source_domain_records(train_records)
+        target_domain_records = self._adaptation_target_domain_records(train_records)
+        domain_batch_size = self._adaptation_domain_batch_size(
+            source_domain_records,
+            target_domain_records,
+        )
         domain_to_int = self._fake_domain_to_int()
 
-        source_train_loader = prepare_data_loader(
+        source_label_loader = prepare_data_loader(
             self.config,
-            source_records,
+            source_label_records,
             shuffle=True,
             domain_to_int=domain_to_int,
             isTraining=True,
         )
-        target_train_loader = prepare_data_loader(
+        source_domain_loader = prepare_data_loader(
             self.config,
-            target_records,
+            source_domain_records,
             shuffle=True,
             domain_to_int=domain_to_int,
             isTraining=True,
+            batch_size=domain_batch_size,
+            drop_last=True,
+        )
+        target_domain_loader = prepare_data_loader(
+            self.config,
+            target_domain_records,
+            shuffle=True,
+            domain_to_int=domain_to_int,
+            isTraining=True,
+            batch_size=domain_batch_size,
+            drop_last=True,
         )
         val_loader = prepare_data_loader(
             self.config,
@@ -145,16 +166,36 @@ class DANNPipeline:
             test_records,
             shuffle=False,
         )
-        return source_train_loader, target_train_loader, val_loader, test_loader
+        return (
+            source_label_loader,
+            source_domain_loader,
+            target_domain_loader,
+            val_loader,
+            test_loader,
+        )
 
-    def _adaptation_source_records(
+    def _adaptation_source_label_records(
         self,
         train_records: list[ImageRecordModel],
     ) -> list[ImageRecordModel]:
         source_domains = set(self.config.experiment.source_domains)
         return [record for record in train_records if record.domain in source_domains]
 
-    def _adaptation_target_records(
+    def _adaptation_source_domain_records(
+        self,
+        train_records: list[ImageRecordModel],
+    ) -> list[ImageRecordModel]:
+        source_domains = set(self.config.experiment.source_domains)
+        return [
+            record
+            for record in train_records
+            if (
+                record.domain in source_domains
+                and record.label == ImageRecordModel.Label.FAKE
+            )
+        ]
+
+    def _adaptation_target_domain_records(
         self,
         train_records: list[ImageRecordModel],
     ) -> list[ImageRecordModel]:
@@ -162,8 +203,30 @@ class DANNPipeline:
         return [
             record
             for record in train_records
-            if record.domain == held_out_domain and record.label == ImageRecordModel.Label.FAKE
+            if (
+                record.domain == held_out_domain
+                and record.label == ImageRecordModel.Label.FAKE
+            )
         ]
+
+    def _adaptation_domain_batch_size(
+        self,
+        source_domain_records: list[ImageRecordModel],
+        target_domain_records: list[ImageRecordModel],
+    ) -> int:
+        if not source_domain_records:
+            raise ValueError("Adaptation requires source fake records for domain loss.")
+        if not target_domain_records:
+            raise ValueError("Adaptation requires target fake records for domain loss.")
+
+        requested = (
+            self.config.domain_adaptation.domain_batch_size
+            or max(1, self.config.training.batch_size // 2)
+        )
+        if requested <= 0:
+            raise ValueError("Domain batch size must be greater than zero.")
+
+        return min(requested, len(source_domain_records), len(target_domain_records))
 
     def _get_domains_count(self) -> int:
 
