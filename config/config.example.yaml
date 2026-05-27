@@ -1,7 +1,7 @@
 experiment:
   name: "testing"
   mode: "dann"
-  protocol: "adaptation" # "generalization" "adaptation"
+  protocol: "adaptation" # "baseline" "generalization" "adaptation"
   real_domain: "Original"
   fake_domains:
     - "Deepfakes"

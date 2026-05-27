@@ -1,13 +1,13 @@
 import random
 from src.loaders.config import ConfigModel
-from src.pipelines.data.split import OneOutSplitModel
+from src.pipelines.data.split import SplitModel
 from src.pipelines.data.image_record_model import ImageRecordModel
 from src.pipelines.data.records.preparation import RecordsPreparation
 
 class DannGeneralizationRecordsPreparation(RecordsPreparation):
 
-    def __init__(self, config: ConfigModel, one_out_split: OneOutSplitModel):
-        super().__init__(config, one_out_split)
+    def __init__(self, config: ConfigModel, split: SplitModel):
+        super().__init__(config, split)
 
     def prepare(self):
 
@@ -22,19 +22,19 @@ class DannGeneralizationRecordsPreparation(RecordsPreparation):
             fake_domains,
         )
         train_records = self._balanced_per_domain_records(
-            self._filter_existing_records(self.one_out_split.source.train),
+            self._filter_existing_records(self.split.train),
             self.config.data.train_source_real,
             fake_domains,
             train_fake_per_domain,
         )
         val_records = self._balanced_per_domain_records(
-            self._filter_existing_records(self.one_out_split.source.validation),
+            self._filter_existing_records(self.split.validation),
             self.config.data.val_source_real,
             fake_domains,
             val_fake_per_domain,
         )
         test_records = self._filter_existing_records(
-            self.one_out_split.target.test,
+            self.split.test,
         )
         self._shuffle(train_records, val_records, test_records)
 
@@ -52,7 +52,7 @@ class DannGeneralizationRecordsPreparation(RecordsPreparation):
         )
         self._log_split_counts(test_records, "test", tag="dann_generalization")
 
-        return train_records, [], val_records, test_records
+        return train_records, val_records, test_records
 
     def _balanced_per_domain_records(
         self,

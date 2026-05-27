@@ -3,7 +3,7 @@ from src.loaders.config import ConfigModel
 from torch.utils.data import DataLoader
 from src.metrics import DANNMetrics, MetricsLogger, BaselineMetrics
 from src.training.helpers import resolve_device, build_optimizer, EarlyStopping, build_label_criterion
-from src.training.dann.grl_scheduler import compute_grl_lambda
+from src.training.dann.adaptation.grl_scheduler import GRLLambdaScheduler
 
 class DANNGeneralizationTrainer:
 
@@ -29,6 +29,7 @@ class DANNGeneralizationTrainer:
         self.logger = MetricsLogger(config)
         patience = config.training.early_stopping_patience
         self.early_stopping = EarlyStopping(patience) if patience is not None else None
+        self.grl_lambda_scheduler = GRLLambdaScheduler(config)
 
     def run(self):
         
@@ -36,13 +37,7 @@ class DANNGeneralizationTrainer:
 
         for epoch in range(self.config.training.epochs):
             
-            grl_lambda = compute_grl_lambda(
-                epoch,
-                self.config.training.epochs,
-                self.config.domain_adaptation.gradient_reversal_lambda,
-                self.config.domain_adaptation.grl_scheduler_gamma,
-                self.config.domain_adaptation.grl_scheduler_enable,
-            )
+            grl_lambda = self.grl_lambda_scheduler.get_grl_lambda(epoch)
             self.model.train()
             self.metrics.reset()
         
@@ -54,16 +49,16 @@ class DANNGeneralizationTrainer:
                 self.optimizer.zero_grad()
 
                 domain_mask = labels == 1
-                label_logits, domain_logits, _ = self.model(
+                output = self.model(
                     images,
                     grl_lambda,
                     domain_mask=domain_mask,
                 )
-                label_loss = self.label_criterion(label_logits, labels)
+                label_loss = self.label_criterion(output.label_logits, labels)
                 domain_labels = domains[domain_mask]
 
                 if domain_labels.numel() > 0:
-                    domain_loss = self.domain_criterion(domain_logits, domain_labels)
+                    domain_loss = self.domain_criterion(output.domain_logits, domain_labels)
                     loss = label_loss + self.config.domain_adaptation.domain_loss_weight * domain_loss
                 else:
                     loss = label_loss
@@ -75,8 +70,8 @@ class DANNGeneralizationTrainer:
                     self.metrics.update(
                         labels,
                         domain_labels,
-                        label_logits,
-                        domain_logits,
+                        output.label_logits,
+                        output.domain_logits,
                         label_loss,
                         domain_loss,
                         loss
@@ -84,7 +79,7 @@ class DANNGeneralizationTrainer:
                 else:
                     self.metrics.update_label_only(
                         labels,
-                        label_logits,
+                        output.label_logits,
                         label_loss,
                         loss,
                     )
@@ -127,27 +122,27 @@ class DANNGeneralizationTrainer:
                 labels = batch["label"].to(self.device)
 
                 domain_mask = labels == 1
-                label_logits, domain_logits, _ = self.model(
+                output = self.model(
                     images,
                     grl_lambda,
                     domain_mask=domain_mask,
                     skip_domain=not include_domain_metrics,
                 )
-                label_loss = self.label_criterion(label_logits, labels)
+                label_loss = self.label_criterion(output.label_logits, labels)
 
                 if include_domain_metrics:
                     domains = batch["domain"].to(self.device)
                     domain_labels = domains[domain_mask]
 
                     if domain_labels.numel() > 0:
-                        domain_loss = self.domain_criterion(domain_logits, domain_labels)
+                        domain_loss = self.domain_criterion(output.domain_logits, domain_labels)
                         loss = label_loss + self.config.domain_adaptation.domain_loss_weight * domain_loss
 
                         metrics.update(
                             labels,
                             domain_labels,
-                            label_logits,
-                            domain_logits,
+                            output.label_logits,
+                            output.domain_logits,
                             label_loss,
                             domain_loss,
                             loss,
@@ -155,14 +150,14 @@ class DANNGeneralizationTrainer:
                     else:
                         metrics.update_label_only(
                             labels,
-                            label_logits,
+                            output.label_logits,
                             label_loss,
                             label_loss,
                         )
                 else:
                     metrics.update(
                         labels,
-                        label_logits,
+                        output.label_logits,
                         label_loss,
                     )
 

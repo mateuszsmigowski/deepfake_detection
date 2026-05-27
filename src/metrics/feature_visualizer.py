@@ -14,15 +14,21 @@ class FeatureVisualizer:
         UMAP = "umap"
         TSNE = "tsne"
 
-    def __init__(self, output_dir: Path):
+    def __init__(self, output_dir: Path, visualization_interval: int):
+
         self._output_dir = output_dir / "feature_visualization"
         self._output_dir.mkdir(parents=True, exist_ok=True)
         self._features: list[torch.Tensor] = []
         self._labels: list[torch.Tensor] = []
         self._domain_names: list[str] = []
         self._method = FeatureVisualizer.ReductionMethod.UMAP
+        self._visualization_interval = visualization_interval
 
-    def add_batch(self, features: torch.Tensor, labels: torch.Tensor, domain_names: list[str]):
+    def add_features(self, epoch: int, features: torch.Tensor, labels: torch.Tensor, domain_names: list[str]):
+
+        if epoch % self._visualization_interval == 0:
+            return
+
         if len(domain_names) != features.size(0):
             raise ValueError("Number of domain names must match the number of features.")
 
@@ -30,18 +36,21 @@ class FeatureVisualizer:
         self._labels.append(labels.detach().cpu())
         self._domain_names.extend(domain_names)
 
-    def flush(self, epoch: int, split: str) -> Path | None:
+    def flush(self, epoch: int, split: str):
+
+        if epoch % self._visualization_interval != 0:
+            return
+
         if not self._features:
-            return None
+            return
 
         features = torch.cat(self._features, dim=0).numpy()
         labels = torch.cat(self._labels, dim=0).numpy()
         domain_names = np.array(self._domain_names)
 
         embeddings = self._reduce(features)
-        output_path = self._plot(embeddings, labels, domain_names, epoch, split)
+        self._plot(embeddings, labels, domain_names, epoch, split)
         self.reset()
-        return output_path
 
     def reset(self):
         self._features.clear()
@@ -124,6 +133,4 @@ class FeatureVisualizer:
         output_path = self._output_dir / f"epoch_{epoch}_{split}.png"
         fig.savefig(output_path, dpi=150, bbox_inches="tight")
         plt.close(fig)
-
-        return output_path
 

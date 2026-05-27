@@ -1,5 +1,5 @@
 from src.pipelines.data.manifest.manifest_model import ManifestModel
-from src.pipelines.data.split.split_model import SplitModel, OneOutSplitModel
+from src.pipelines.data.split.split_model import SplitModel
 from src.loaders.config import SplitConfig, ExperimentConfig
 from src.pipelines.data.split._helper import (
     build_graph,
@@ -9,7 +9,6 @@ from src.pipelines.data.split._helper import (
     validate_config,
     extract_id_from_video_id,
 )
-from src.pipelines.data.image_record_model import ImageRecordModel
 
 
 class SplitBuilder:
@@ -38,7 +37,7 @@ class SplitBuilder:
             experiment_config.held_out_domain,
         }
 
-    def build_split(self) -> OneOutSplitModel:
+    def build_split(self) -> SplitModel:
         
         validate_ratios(self.split_config)
         validate_config(
@@ -53,69 +52,61 @@ class SplitBuilder:
         train_ids, validation_ids, test_ids = build_splits(clusters, self.split_config)
 
         match self.experiment_config.protocol:
-            case ExperimentConfig.Protocol.GENERALIZATION:
-                return self._build_generalization_one_out_split(train_ids, validation_ids, test_ids)
+            case ExperimentConfig.Protocol.BASELINE | ExperimentConfig.Protocol.GENERALIZATION:
+                return self._build_generalization_split(train_ids, validation_ids, test_ids)
             case ExperimentConfig.Protocol.ADAPTATION:
-                return self._build_adaptation_one_out_split(train_ids, validation_ids, test_ids)
+                return self._build_adaptation_split(train_ids, validation_ids, test_ids)
             case _:
                 raise ValueError(f"Invalid protocol: {self.experiment_config.protocol}")
 
-    def _build_generalization_one_out_split(
+    def _build_generalization_split(
         self,
         train_ids: set[str],
         validation_ids: set[str],
         test_ids: set[str],
-    ) -> OneOutSplitModel:
+    ) -> SplitModel:
 
-        source = SplitModel(train=[], validation=[], test=[])
-        target = SplitModel(train=[], validation=[], test=[])
+        split = SplitModel(train=[], validation=[], test=[])
 
         for record in self.manifest.records:
             video_ids = extract_id_from_video_id(record.video_id)
 
             if all(id in train_ids for id in video_ids):
                 if record.domain in self.source_domains:
-                    source.train.append(record)
+                    split.train.append(record)
 
             elif all(id in validation_ids for id in video_ids):
                 if record.domain in self.source_domains:
-                    source.validation.append(record)
+                    split.validation.append(record)
 
             elif all(id in test_ids for id in video_ids):
-                if record.domain in self.source_domains:
-                    source.test.append(record)
                 if record.domain in self.target_domains:
-                    target.test.append(record)
+                    split.test.append(record)
 
-        return OneOutSplitModel(source=source, target=target)
+        return split
 
-    def _build_adaptation_one_out_split(
+    def _build_adaptation_split(
         self,
         train_ids: set[str],
         validation_ids: set[str],
         test_ids: set[str],
-    ) -> OneOutSplitModel:
+    ) -> SplitModel:
 
-        source = SplitModel(train=[], validation=[], test=[])
-        target = SplitModel(train=[], validation=[], test=[])
+        split = SplitModel(train=[], validation=[], test=[])
 
         for record in self.manifest.records:
             video_ids = extract_id_from_video_id(record.video_id)
 
             if all(id in train_ids for id in video_ids):
                 if record.domain in self.source_domains:
-                    source.train.append(record)
-                if record.domain == self.held_out_domain and record.label == ImageRecordModel.Label.FAKE:
-                    target.train.append(record)
+                    split.train.append(record)
+                if record.domain == self.held_out_domain:
+                    split.train.append(record)
             elif all(id in validation_ids for id in video_ids):
                 if record.domain in self.source_domains:
-                    source.validation.append(record)
-                if record.domain == self.held_out_domain and record.label == ImageRecordModel.Label.FAKE:
-                    target.validation.append(record)
+                    split.validation.append(record)
             elif all(id in test_ids for id in video_ids):
-                if record.domain in self.source_domains:
-                    source.test.append(record)
                 if record.domain in self.target_domains:
-                    target.test.append(record)
+                    split.test.append(record)
 
-        return OneOutSplitModel(source=source, target=target)
+        return split

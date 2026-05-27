@@ -9,12 +9,14 @@ class DANNVariant:
     domain_loss_weight: float | None = None
     freeze_backbone: bool | None = None
 
-SEEDS = [123, 948, 2024]
+SEEDS = [654]
 
 MODEL_ARCHITECTURES = [
     ModelConfig.Architecture.RESNET18,
-    ModelConfig.Architecture.RESNET50,
-    ModelConfig.Architecture.EFFICIENTNET_B0,
+    # ModelConfig.Architecture.RESNET50,
+    # ModelConfig.Architecture.EFFICIENTNET_B0,
+    # ModelConfig.Architecture.CONVNEXT_TINY,
+    # ModelConfig.Architecture.MOBILENET_V3_SMALL,
 ]
 
 PROTOCOLS = [
@@ -33,41 +35,40 @@ DANN_ABLATIONS = [
 ]
 
 HELD_OUT_DOMAINS = [
-    "Deepfakes",
+    # "Deepfakes",
     "Face2Face",
-    "FaceSwap",
-    "NeuralTextures",
+    # "FaceSwap",
+    # "NeuralTextures",
 ]
 
 def run_experiment(base_config: ConfigModel):
 
     for held_out_domain in HELD_OUT_DOMAINS:
         for architecture in MODEL_ARCHITECTURES:
-            for protocol in PROTOCOLS:
                 for seed in SEEDS:
                     baseline_config = _make_config(
                         base_config,
                         mode=ExperimentMode.BASELINE,
-                        protocol=protocol,
+                        protocol=ExperimentConfig.Protocol.BASELINE,
                         architecture=architecture,
                         held_out_domain=held_out_domain,
                         seed=seed,
                         variant_name="baseline",
                     )
                     orchestrate(baseline_config)
-
-                    for variant in DANN_ABLATIONS:
-                        dann_config = _make_config(
-                            base_config,
-                            mode=ExperimentMode.DANN,
-                            protocol=protocol,
-                            architecture=architecture,
-                            held_out_domain=held_out_domain,
-                            seed=seed,
-                            variant_name=variant.name,
-                            variant=variant,
-                        )
-                        orchestrate(dann_config)
+                    for protocol in PROTOCOLS:
+                        for variant in DANN_ABLATIONS:
+                            dann_config = _make_config(
+                                base_config,
+                                mode=ExperimentMode.DANN,
+                                protocol=protocol,
+                                architecture=architecture,
+                                held_out_domain=held_out_domain,
+                                seed=seed,
+                                variant_name=variant.name,
+                                variant=variant,
+                            )
+                            orchestrate(dann_config)
 
 def _make_config(
     config: ConfigModel,

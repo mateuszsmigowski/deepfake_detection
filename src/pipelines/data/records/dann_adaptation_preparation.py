@@ -1,16 +1,15 @@
 import random
 from src.loaders.config import ConfigModel
-from src.pipelines.data.split import OneOutSplitModel
+from src.pipelines.data.split import SplitModel
 from src.pipelines.data.image_record_model import ImageRecordModel
 from src.pipelines.data.records.preparation import RecordsPreparation
 
 class DannAdaptationRecordsPreparation(RecordsPreparation):
 
-    def __init__(self, config: ConfigModel, one_out_split: OneOutSplitModel):
-        super().__init__(config, one_out_split)
+    def __init__(self, config: ConfigModel, split: SplitModel):
+        super().__init__(config, split)
 
     def prepare(self) -> tuple[
-        list[ImageRecordModel],
         list[ImageRecordModel],
         list[ImageRecordModel],
         list[ImageRecordModel],
@@ -26,31 +25,32 @@ class DannAdaptationRecordsPreparation(RecordsPreparation):
             fake_domains,
         )
 
-        train_records = self._balanced_adaptation_source_records(
-            self._filter_existing_records(self.one_out_split.source.train),
+        filtered_train = self._filter_existing_records(self.split.train)
+        source_records = self._balanced_adaptation_source_records(
+            filtered_train,
             fake_domains,
             train_per_domain,
         )
-        target_train_records = self._limit_target_fake_records(
-            self._filter_existing_records(self.one_out_split.target.train),
+        target_fake_records = self._limit_target_fake_records(
+            filtered_train,
             self.config.data.train_target_fake,
         )
+        train_records = source_records + target_fake_records
         val_records = self._balanced_adaptation_source_records(
-            self._filter_existing_records(self.one_out_split.source.validation),
+            self._filter_existing_records(self.split.validation),
             fake_domains,
             val_per_domain,
         )
-        test_records = self._filter_existing_records(self.one_out_split.target.test)
+        test_records = self._filter_existing_records(self.split.test)
 
-        self._shuffle(train_records, target_train_records, val_records, test_records)
+        self._shuffle(train_records, val_records, test_records)
 
         self._log_split_counts(
             train_records,
-            "source_train",
+            "train",
             tag="dann_adaptation",
-            extra=f", per_domain: {train_per_domain}",
+            extra=f", per_domain: {train_per_domain}, target_fake: {self.config.data.train_target_fake}",
         )
-        self._log_split_counts(target_train_records, "target_train", tag="dann_adaptation")
         self._log_split_counts(
             val_records,
             "val",
@@ -59,7 +59,7 @@ class DannAdaptationRecordsPreparation(RecordsPreparation):
         )
         self._log_split_counts(test_records, "test", tag="dann_adaptation")
 
-        return train_records, target_train_records, val_records, test_records
+        return train_records, val_records, test_records
 
     def _balanced_adaptation_source_records(
         self,
@@ -99,11 +99,10 @@ class DannAdaptationRecordsPreparation(RecordsPreparation):
 
 def prepare_dann_adaptation_records(
     config: ConfigModel,
-    one_out_split: OneOutSplitModel,
+    split: SplitModel,
 ) -> tuple[
     list[ImageRecordModel],
     list[ImageRecordModel],
     list[ImageRecordModel],
-    list[ImageRecordModel],
 ]:
-    return DannAdaptationRecordsPreparation(config, one_out_split).prepare()
+    return DannAdaptationRecordsPreparation(config, split).prepare()

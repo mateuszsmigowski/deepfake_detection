@@ -3,8 +3,8 @@ from pathlib import Path
 from torch.utils.data import DataLoader
 from src.pipelines.data.image_record_model import ImageRecordModel
 from src.pipelines.image_dataset import ImageDataset
-from src.loaders.config import ConfigModel, ExperimentConfig
-from src.pipelines.data.split import OneOutSplitModel
+from src.loaders.config import ConfigModel
+from src.pipelines.data.split import SplitModel
 from src.models.builder import ModelBuilder
 
 def prepare_data_loader(
@@ -14,6 +14,9 @@ def prepare_data_loader(
     domain_to_int: dict[str, int] | None = None,
     isTraining: bool = False,
 ) -> DataLoader:
+
+    if not records:
+        raise ValueError("Cannot create a DataLoader for an empty record list.")
 
     if isTraining:
         transforms = ModelBuilder.get_training_transforms(config.model.architecture)
@@ -38,39 +41,29 @@ def prepare_data_loader(
         persistent_workers=config.runtime.num_workers > 0,
     )
 
-def prepare_records(config: ConfigModel, one_out_split: OneOutSplitModel) -> tuple[
-    list[ImageRecordModel],
+def prepare_records(config: ConfigModel, split: SplitModel) -> tuple[
     list[ImageRecordModel],
     list[ImageRecordModel],
     list[ImageRecordModel],
 ]:
 
-    source_train = _balanced_records(
-        _filter_existing_records(one_out_split.source.train, config.data.dataset_path),
+    train_records = _balanced_records(
+        _filter_existing_records(split.train, config.data.dataset_path),
         real_limit=config.data.train_source_real,
         fake_limit=config.data.train_source_fake,
     )
-    source_validation = _balanced_records(
-        _filter_existing_records(one_out_split.source.validation, config.data.dataset_path),
+    validation_records = _balanced_records(
+        _filter_existing_records(split.validation, config.data.dataset_path),
         real_limit=config.data.val_source_real,
         fake_limit=config.data.val_source_fake,
     )
-    target_test = _filter_existing_records(one_out_split.target.test, config.data.dataset_path)
+    test_records = _filter_existing_records(split.test, config.data.dataset_path)
 
-    match config.experiment.protocol:
-        case ExperimentConfig.Protocol.GENERALIZATION:
-            target_train = []
-        case ExperimentConfig.Protocol.ADAPTATION:
-            target_train = _limit_fake(
-                _filter_existing_records(one_out_split.target.train, config.data.dataset_path),
-                config.data.train_target_fake
-            )
+    random.shuffle(train_records)
+    random.shuffle(validation_records)
+    random.shuffle(test_records)
 
-    random.shuffle(source_train)
-    random.shuffle(target_train)
-    random.shuffle(source_validation)
-
-    return source_train, target_train, source_validation, target_test
+    return train_records, validation_records, test_records
 
 def _filter_existing_records(
     records: list[ImageRecordModel],
@@ -88,16 +81,19 @@ def _balanced_records(
     fake_limit: int,
 ) -> list[ImageRecordModel]:
 
-    real_records = [record for record in records if record.label == "real"]
-    fake_records = [record for record in records if record.label == "fake"]
+    real_records = [
+        record for record in records if record.label == ImageRecordModel.Label.REAL
+    ]
+    fake_records = [
+        record for record in records if record.label == ImageRecordModel.Label.FAKE
+    ]
 
     random.shuffle(real_records)
     random.shuffle(fake_records)
 
+    if len(real_records) < real_limit:
+        raise ValueError("Not enough real records to satisfy the requested limit.")
+    if len(fake_records) < fake_limit:
+        raise ValueError("Not enough fake records to satisfy the requested limit.")
+
     return real_records[:real_limit] + fake_records[:fake_limit]
-
-def _limit_fake(records: list[ImageRecordModel], limit: int) -> list[ImageRecordModel]:
-
-    fake_records = [record for record in records if record.label == ImageRecordModel.Label.FAKE]
-    random.shuffle(fake_records)
-    return fake_records[:limit]

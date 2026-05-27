@@ -2,13 +2,13 @@ import random
 from pathlib import Path
 from src.pipelines.data.image_record_model import ImageRecordModel
 from src.loaders.config import ConfigModel
-from src.pipelines.data.split import OneOutSplitModel
+from src.pipelines.data.split import SplitModel
 
 class RecordsPreparation:
 
-    def __init__(self, config: ConfigModel, one_out_split: OneOutSplitModel):
+    def __init__(self, config: ConfigModel, split: SplitModel):
         self.config = config
-        self.one_out_split = one_out_split
+        self.split = split
 
     def prepare(self):
         raise NotImplementedError("Subclasses must implement this method")

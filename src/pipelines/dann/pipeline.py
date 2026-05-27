@@ -1,5 +1,5 @@
 from src.loaders.config import ConfigModel, ExperimentConfig
-from src.pipelines.data.split import OneOutSplitModel
+from src.pipelines.data.split import SplitModel
 from src.pipelines.data.image_record_model import ImageRecordModel
 from torch.utils.data import DataLoader
 from src.models.dann.model import DANNClassifier
@@ -12,9 +12,9 @@ from src.pipelines.helpers import prepare_data_loader
 
 class DANNPipeline:
 
-    def __init__(self, config: ConfigModel, one_out_split: OneOutSplitModel):
+    def __init__(self, config: ConfigModel, split: SplitModel):
         self.config = config
-        self.one_out_split = one_out_split
+        self.split = split
 
     def run(self):
 
@@ -22,25 +22,45 @@ class DANNPipeline:
             self.config.runtime.seed,
             self.config.runtime.deterministic,
         )
-        train_records, target_train, val_records, test_records = self._prepare_records()
-        source_train_loader, target_train_loader, val_loader, test_loader = self._prepare_data_loaders(
-            train_records,
-            target_train,
-            val_records,
-            test_records,
-        )
+        train_records, val_records, test_records = self._prepare_records()
         classifier = DANNClassifier(
             self.config.model,
             self.config.domain_adaptation,
             domains_count=self._get_domains_count(),
         )
-        trainer = self._prepare_trainer(
-            classifier,
-            source_train_loader,
-            target_train_loader,
-            val_loader,
-            test_loader,
-        )
+
+        match self.config.experiment.protocol:
+            case ExperimentConfig.Protocol.GENERALIZATION:
+                train_loader, val_loader, test_loader = self._prepare_generalization_data_loaders(
+                    train_records,
+                    val_records,
+                    test_records,
+                )
+                trainer = DANNGeneralizationTrainer(
+                    self.config,
+                    classifier,
+                    train_loader,
+                    val_loader,
+                    test_loader,
+                )
+            case ExperimentConfig.Protocol.ADAPTATION:
+                source_train_loader, target_train_loader, val_loader, test_loader = (
+                    self._prepare_adaptation_data_loaders(
+                        train_records,
+                        val_records,
+                        test_records,
+                    )
+                )
+                trainer = DANNAdaptationTrainer(
+                    self.config,
+                    classifier,
+                    source_train_loader,
+                    target_train_loader,
+                    val_loader,
+                    test_loader,
+                )
+            case _:
+                raise ValueError(f"Invalid protocol: {self.config.experiment.protocol}")
 
         trainer.run()
 
@@ -50,100 +70,75 @@ class DANNPipeline:
             case ExperimentConfig.Protocol.GENERALIZATION:
                 records_preparation = DannGeneralizationRecordsPreparation(
                     self.config,
-                    self.one_out_split,
+                    self.split,
                 )
                 return records_preparation.prepare()
             case ExperimentConfig.Protocol.ADAPTATION:
                 records_preparation = DannAdaptationRecordsPreparation(
                     self.config,
-                    self.one_out_split,
+                    self.split,
                 )
                 return records_preparation.prepare()
-
-    def _prepare_data_loaders(
-        self,
-        train_records: list[ImageRecordModel],
-        target_train: list[ImageRecordModel],
-        val_records: list[ImageRecordModel],
-        test_records: list[ImageRecordModel],
-    ) -> tuple[DataLoader, DataLoader | None, DataLoader, DataLoader]:
-
-        match self.config.experiment.protocol:
-            case ExperimentConfig.Protocol.GENERALIZATION:
-                return self._prepare_generalization_data_loaders(
-                    train_records,
-                    val_records,
-                    test_records,
-                )
-            case ExperimentConfig.Protocol.ADAPTATION:
-                return self._prepare_adaptation_data_loaders(
-                    train_records,
-                    target_train,
-                    val_records,
-                    test_records,
-                )
-            case _:
-                raise ValueError(f"Invalid protocol: {self.config.experiment.protocol}")
 
     def _prepare_generalization_data_loaders(
         self,
         train_records: list[ImageRecordModel],
         val_records: list[ImageRecordModel],
         test_records: list[ImageRecordModel],
-    ) -> tuple[DataLoader, None, DataLoader, DataLoader]:
+    ) -> tuple[DataLoader, DataLoader, DataLoader]:
 
-        source_domain_to_int = self._generalization_domain_to_int()
+        domain_to_int = self._fake_domain_to_int()
 
-        source_train_loader = prepare_data_loader(
+        train_loader = prepare_data_loader(
             self.config,
             train_records,
             shuffle=True,
-            domain_to_int=source_domain_to_int,
+            domain_to_int=domain_to_int,
             isTraining=True,
         )
         val_loader = prepare_data_loader(
             self.config,
             val_records,
             shuffle=False,
-            domain_to_int=source_domain_to_int,
+            domain_to_int=domain_to_int,
         )
         test_loader = prepare_data_loader(
             self.config,
             test_records,
             shuffle=False,
         )
-        return source_train_loader, None, val_loader, test_loader
+        return train_loader, val_loader, test_loader
 
     def _prepare_adaptation_data_loaders(
         self,
         train_records: list[ImageRecordModel],
-        target_train: list[ImageRecordModel],
         val_records: list[ImageRecordModel],
         test_records: list[ImageRecordModel],
     ) -> tuple[DataLoader, DataLoader, DataLoader, DataLoader]:
 
-        source_domain_to_int = self.config.experiment.source_domain_to_int
-        target_domain_to_int = {self.config.experiment.held_out_domain: 1}
+        source_records = self._adaptation_source_records(train_records)
+        target_records = self._adaptation_target_records(train_records)
+        domain_to_int = self._fake_domain_to_int()
 
         source_train_loader = prepare_data_loader(
             self.config,
-            train_records,
+            source_records,
             shuffle=True,
-            domain_to_int=source_domain_to_int,
+            domain_to_int=domain_to_int,
             isTraining=True,
         )
         target_train_loader = prepare_data_loader(
             self.config,
-            target_train,
+            target_records,
             shuffle=True,
-            domain_to_int=target_domain_to_int,
+            domain_to_int=domain_to_int,
             isTraining=True,
         )
         val_loader = prepare_data_loader(
             self.config,
             val_records,
             shuffle=False,
-            domain_to_int=source_domain_to_int,
+            domain_to_int=domain_to_int,
         )
         test_loader = prepare_data_loader(
             self.config,
@@ -152,57 +147,31 @@ class DANNPipeline:
         )
         return source_train_loader, target_train_loader, val_loader, test_loader
 
-    def _prepare_trainer(
+    def _adaptation_source_records(
         self,
-        classifier: DANNClassifier,
-        source_train_loader: DataLoader,
-        target_train_loader: DataLoader | None,
-        val_loader: DataLoader,
-        test_loader: DataLoader,
-    ):
+        train_records: list[ImageRecordModel],
+    ) -> list[ImageRecordModel]:
+        source_domains = set(self.config.experiment.source_domains)
+        return [record for record in train_records if record.domain in source_domains]
 
-        match self.config.experiment.protocol:
-            case ExperimentConfig.Protocol.GENERALIZATION:
-                trainer = DANNGeneralizationTrainer(
-                    self.config,
-                    classifier,
-                    source_train_loader,
-                    val_loader,
-                    test_loader,
-                )
-            case ExperimentConfig.Protocol.ADAPTATION:
-                if target_train_loader is None:
-                    raise ValueError("Target train loader is required for DANN adaptation.")
-
-                trainer = DANNAdaptationTrainer(
-                    self.config,
-                    classifier,
-                    source_train_loader,
-                    target_train_loader,
-                    val_loader,
-                    test_loader,
-                )
-        return trainer
+    def _adaptation_target_records(
+        self,
+        train_records: list[ImageRecordModel],
+    ) -> list[ImageRecordModel]:
+        held_out_domain = self.config.experiment.held_out_domain
+        return [
+            record
+            for record in train_records
+            if record.domain == held_out_domain and record.label == ImageRecordModel.Label.FAKE
+        ]
 
     def _get_domains_count(self) -> int:
 
         match self.config.experiment.protocol:
             case ExperimentConfig.Protocol.GENERALIZATION:
-                return len(self._source_fake_domains())
+                return len(self.config.experiment.fake_domains)
             case ExperimentConfig.Protocol.ADAPTATION:
-                return 2 # TODO: Remove magic number, should be calculated
+                return len(self.config.experiment.fake_domains)
 
-    def _source_fake_domains(self) -> list[str]:
-        return [
-            domain
-            for domain in self.config.experiment.fake_domains
-            if domain != self.config.experiment.held_out_domain
-        ]
-
-    def _generalization_domain_to_int(self) -> dict[str, int]:
-        domain_to_int = {
-            domain: index
-            for index, domain in enumerate(self._source_fake_domains())
-        }
-        domain_to_int[self.config.experiment.real_domain] = -1
-        return domain_to_int
+    def _fake_domain_to_int(self) -> dict[str, int]:
+        return self.config.experiment.fake_domain_to_int

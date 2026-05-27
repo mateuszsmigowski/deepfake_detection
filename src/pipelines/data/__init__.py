@@ -8,15 +8,16 @@ from .records import (
 )
 
 ImageLabel = ImageRecordModel.Label
+ImageDomain = ImageRecordModel.Domain
 
 __all__ = [
     "ManifestModel",
     "ManifestManager",
-    "OneOutSplitModel",
     "SplitManager",
     "SplitBuilder",
     "ImageRecordModel",
     "ImageLabel",
+    "ImageDomain",
     "prepare_baseline_records",
     "prepare_dann_adaptation_records",
     "prepare_dann_generalization_records",

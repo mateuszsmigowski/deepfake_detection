@@ -6,8 +6,3 @@ class SplitModel:
     train: list[ImageRecordModel]
     validation: list[ImageRecordModel]
     test: list[ImageRecordModel]
-
-@dataclass(frozen=True)
-class OneOutSplitModel:
-    source: SplitModel
-    target: SplitModel

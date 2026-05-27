@@ -1,4 +1,4 @@
-from src.pipelines.data.split import OneOutSplitModel
+from src.pipelines.data.split import SplitModel
 from src.loaders.config import ConfigModel
 from src.models.baseline.model import BaselineClassifier
 from src.training import configure_reproducibility, BaselineTrainer
@@ -10,10 +10,10 @@ from torch.utils.data import DataLoader
 
 class BaselinePipeline:
 
-    def __init__(self, config: ConfigModel, one_out_split: OneOutSplitModel):
+    def __init__(self, config: ConfigModel, split: SplitModel):
 
         self.config = config
-        self.one_out_split = one_out_split
+        self.split = split
 
     def run(self):
 
@@ -30,7 +30,7 @@ class BaselinePipeline:
         trainer.run()
 
     def _prepare_records(self):
-        return BaselineRecordsPreparation(self.config, self.one_out_split).prepare()
+        return BaselineRecordsPreparation(self.config, self.split).prepare()
 
     def _prepare_data_loaders(
         self,
