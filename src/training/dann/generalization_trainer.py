@@ -1,7 +1,7 @@
 import torch
 from src.loaders.config import ConfigModel
 from torch.utils.data import DataLoader
-from src.metrics import DANNMetrics, MetricsLogger, BaselineMetrics
+from src.metrics import DANNMetrics, MetricsLogger, BaselineMetrics, FeatureVisualizer
 from src.training.helpers import resolve_device, build_optimizer, EarlyStopping, build_label_criterion
 from src.training.dann.adaptation.grl_scheduler import GRLLambdaScheduler
 
@@ -27,6 +27,7 @@ class DANNGeneralizationTrainer:
         self.domain_criterion = torch.nn.CrossEntropyLoss()
         self.metrics = DANNMetrics()
         self.logger = MetricsLogger(config)
+        self.feature_visualizer = FeatureVisualizer(self.logger.run_dir, 5)
         patience = config.training.early_stopping_patience
         self.early_stopping = EarlyStopping(patience) if patience is not None else None
         self.grl_lambda_scheduler = GRLLambdaScheduler(config)
@@ -37,9 +38,11 @@ class DANNGeneralizationTrainer:
 
         for epoch in range(self.config.training.epochs):
             
+            epoch_number = epoch + 1
             grl_lambda = self.grl_lambda_scheduler.get_grl_lambda(epoch)
             self.model.train()
             self.metrics.reset()
+            self.feature_visualizer.reset()
         
             for batch in self.train_loader:
                 images = batch["image"].to(self.device)
@@ -83,19 +86,27 @@ class DANNGeneralizationTrainer:
                         label_loss,
                         loss,
                     )
+
+                self.feature_visualizer.add_features(
+                    epoch_number,
+                    output.features,
+                    labels,
+                    batch["metadata"]["domain"],
+                )
                 
             metrics = self.metrics.get_metrics()
-            self.logger.log_metrics("train", metrics, epoch + 1)
+            self.logger.log_metrics("train", metrics, epoch_number)
+            self.feature_visualizer.flush(epoch_number, "train")
 
-            if (epoch + 1) % self.config.training.validation_interval == 0:
+            if epoch_number % self.config.training.validation_interval == 0:
                 
                 metrics = self._evaluate(
                     self.validation_loader,
                     include_domain_metrics=True,
                     grl_lambda=grl_lambda,
                 )
-                self.logger.log_metrics("validation", metrics, epoch + 1)
-                improved = self.logger.save_best_checkpoint(self.model, metrics, "validation", epoch + 1)
+                self.logger.log_metrics("validation", metrics, epoch_number)
+                improved = self.logger.save_best_checkpoint(self.model, metrics, "validation", epoch_number)
                 if self.early_stopping and self.early_stopping.step(improved):
                     break
 

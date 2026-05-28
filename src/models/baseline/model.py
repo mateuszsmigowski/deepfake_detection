@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import torch
 from torch import nn
 from src.loaders.config import ModelConfig
@@ -5,6 +6,11 @@ from src.models.builder import ModelBuilder
 
 
 class BaselineClassifier(nn.Module):
+
+    @dataclass
+    class ModelOutput:
+        label_logits: torch.Tensor
+        features: torch.Tensor
 
     def __init__(self, model_config: ModelConfig):
         super().__init__()
@@ -22,6 +28,9 @@ class BaselineClassifier(nn.Module):
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.forward_with_features(x).label_logits
+
+    def forward_with_features(self, x: torch.Tensor) -> ModelOutput:
         features = self.backbone(x)
         label_logits = self.label_classifier(features).squeeze(dim=1)
-        return label_logits
+        return self.ModelOutput(label_logits, features)

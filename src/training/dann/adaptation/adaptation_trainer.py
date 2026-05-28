@@ -48,6 +48,7 @@ class DANNAdaptationTrainer:
 
         for epoch in range(self.config.training.epochs):
             
+            epoch_number = epoch + 1
             grl_lambda = self.grl_lambda_scheduler.get_grl_lambda(epoch)
             self.model.train()
             self.metrics.reset()
@@ -131,7 +132,7 @@ class DANNAdaptationTrainer:
                     )
 
                 self.feature_visualizer.add_features(
-                    epoch,
+                    epoch_number,
                     output.features,
                     labels,
                     [
@@ -142,13 +143,13 @@ class DANNAdaptationTrainer:
                 )
 
             metrics = self.metrics.get_metrics()
-            self.logger.log_metrics("train", metrics, epoch + 1)
-            self.feature_visualizer.flush(epoch, "train")
+            self.logger.log_metrics("train", metrics, epoch_number)
+            self.feature_visualizer.flush(epoch_number, "train")
                 
-            if (epoch + 1) % self.config.training.validation_interval == 0:
+            if epoch_number % self.config.training.validation_interval == 0:
                 metrics = self._evaluate(self.validation_loader, include_domain_metrics=False)
-                self.logger.log_metrics("validation", metrics, epoch + 1)
-                improved = self.logger.save_best_checkpoint(self.model, metrics, "validation", epoch + 1)
+                self.logger.log_metrics("validation", metrics, epoch_number)
+                improved = self.logger.save_best_checkpoint(self.model, metrics, "validation", epoch_number)
                 if self.early_stopping and self.early_stopping.step(improved):
                     break
 

@@ -3,8 +3,7 @@ from torch import nn
 from src.loaders.config import ConfigModel
 from torch.utils.data import DataLoader
 from src.training.helpers import resolve_device, build_optimizer, EarlyStopping, build_label_criterion
-from src.metrics.baseline_metrics import BaselineMetrics
-from src.metrics.logger import MetricsLogger
+from src.metrics import BaselineMetrics, FeatureVisualizer, MetricsLogger
 
 class BaselineTrainer:
 
@@ -26,6 +25,7 @@ class BaselineTrainer:
         self.optimizer = build_optimizer(model, config.training)
         self.metrics = BaselineMetrics()
         self.logger = MetricsLogger(config)
+        self.feature_visualizer = FeatureVisualizer(self.logger.run_dir, 5)
         patience = config.training.early_stopping_patience
         self.early_stopping = EarlyStopping(patience) if patience is not None else None
 
@@ -35,8 +35,10 @@ class BaselineTrainer:
 
         for epoch in range(self.config.training.epochs): 
             
+            epoch_number = epoch + 1
             self.model.train()
             self.metrics.reset()
+            self.feature_visualizer.reset()
 
             for batch in self.train_loader:
                 images = batch["image"].to(self.device)
@@ -44,21 +46,29 @@ class BaselineTrainer:
 
                 self.optimizer.zero_grad()
 
-                logits = self.model(images)
+                output = self.model.forward_with_features(images)
+                logits = output.label_logits
                 loss = self.criterion(logits, labels)
 
                 loss.backward()
                 self.optimizer.step()
 
                 self.metrics.update(labels, logits, loss)
+                self.feature_visualizer.add_features(
+                    epoch_number,
+                    output.features,
+                    labels,
+                    batch["metadata"]["domain"],
+                )
 
             metrics = self.metrics.get_metrics()
-            self.logger.log_metrics("train", metrics, epoch + 1)
+            self.logger.log_metrics("train", metrics, epoch_number)
+            self.feature_visualizer.flush(epoch_number, "train")
 
-            if (epoch + 1) % self.config.training.validation_interval == 0:
+            if epoch_number % self.config.training.validation_interval == 0:
                 metrics = self._evaluate(self.validation_loader)
-                self.logger.log_metrics("validation", metrics, epoch + 1)
-                improved = self.logger.save_best_checkpoint(self.model, metrics, "validation", epoch + 1)
+                self.logger.log_metrics("validation", metrics, epoch_number)
+                improved = self.logger.save_best_checkpoint(self.model, metrics, "validation", epoch_number)
                 if self.early_stopping and self.early_stopping.step(improved):
                     break
         

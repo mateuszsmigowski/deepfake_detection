@@ -1,8 +1,13 @@
 import torch
 import numpy as np
 from enum import StrEnum
+import os
+import tempfile
 import umap
 from sklearn.manifold import TSNE
+
+os.environ.setdefault("MPLCONFIGDIR", tempfile.gettempdir())
+
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -24,9 +29,15 @@ class FeatureVisualizer:
         self._method = FeatureVisualizer.ReductionMethod.UMAP
         self._visualization_interval = visualization_interval
 
-    def add_features(self, epoch: int, features: torch.Tensor, labels: torch.Tensor, domain_names: list[str]):
+    def add_features(
+        self,
+        epoch: int,
+        features: torch.Tensor,
+        labels: torch.Tensor,
+        domain_names: list[str],
+    ):
 
-        if epoch % self._visualization_interval == 0:
+        if not self._should_visualize(epoch):
             return
 
         if len(domain_names) != features.size(0):
@@ -38,7 +49,7 @@ class FeatureVisualizer:
 
     def flush(self, epoch: int, split: str):
 
-        if epoch % self._visualization_interval != 0:
+        if not self._should_visualize(epoch):
             return
 
         if not self._features:
@@ -57,21 +68,27 @@ class FeatureVisualizer:
         self._labels.clear()
         self._domain_names.clear()
 
+    def _should_visualize(self, epoch: int) -> bool:
+        return epoch == 1 or epoch % self._visualization_interval == 0
+
     def _reduce(self, features: np.ndarray) -> np.ndarray:
+        if features.shape[0] < 2:
+            raise ValueError("Feature visualization requires at least two samples.")
 
         match self._method:
             case FeatureVisualizer.ReductionMethod.UMAP:
                 return umap.UMAP(
                     n_components=2,
-                    n_neighbors=15,
+                    n_neighbors=min(15, max(2, features.shape[0] - 1)),
                     min_dist=0.1,
                     metric="cosine",
                     random_state=100,
+                    n_jobs=1,
                 ).fit_transform(features)
             case FeatureVisualizer.ReductionMethod.TSNE:
                 return TSNE(
                     n_components=2,
-                    perplexity=30,
+                    perplexity=min(30, features.shape[0] - 1),
                     learning_rate="auto",
                     init="pca",
                     random_state=100,
@@ -133,4 +150,3 @@ class FeatureVisualizer:
         output_path = self._output_dir / f"epoch_{epoch}_{split}.png"
         fig.savefig(output_path, dpi=150, bbox_inches="tight")
         plt.close(fig)
-

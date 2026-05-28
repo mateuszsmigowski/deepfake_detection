@@ -9,14 +9,14 @@ class DANNVariant:
     domain_loss_weight: float | None = None
     freeze_backbone: bool | None = None
 
-SEEDS = [654]
+SEEDS = [199]
 
 MODEL_ARCHITECTURES = [
     ModelConfig.Architecture.RESNET18,
     # ModelConfig.Architecture.RESNET50,
     # ModelConfig.Architecture.EFFICIENTNET_B0,
     # ModelConfig.Architecture.CONVNEXT_TINY,
-    # ModelConfig.Architecture.MOBILENET_V3_SMALL,
+    ModelConfig.Architecture.MOBILENET_V3_SMALL,
 ]
 
 PROTOCOLS = [
@@ -25,8 +25,9 @@ PROTOCOLS = [
 ]
 
 DANN_ABLATIONS = [
-    DANNVariant("dann-main"),
-    # DANNVariant("grl-0p1", gradient_reversal_lambda=0.1),
+    # DANNVariant("dann-main"),
+    DANNVariant("grl-1p0-domain-weight-0p1" , gradient_reversal_lambda=1.0, domain_loss_weight=0.1),
+    DANNVariant("grl-1p0-domain-weight-1p0", gradient_reversal_lambda=1.0, domain_loss_weight=1.0),
     # DANNVariant("grl-0p5", gradient_reversal_lambda=0.5),
     # DANNVariant("grl-2p0", gradient_reversal_lambda=2.0),
     # DANNVariant("domain-weight-0p5", domain_loss_weight=0.5),
